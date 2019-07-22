@@ -148,10 +148,12 @@ func (c *Controller) createProwJobFromPeriodicWithRelease(periodicWithRelease Pe
 	}
 	var previousTag, previousReleasePullSpec string
 	if periodicWithRelease.Upgrade {
-		previousTag, previousReleasePullSpec, err = c.getUpgradeTagAndPullSpec(release, latestTag, periodicWithRelease.Periodic.Name, periodicWithRelease.UpgradeFrom, true)
+		upgradeSources, err := c.getUpgradeSources(release, latestTag, periodicWithRelease.Periodic.Name, periodicWithRelease.UpgradeFrom, true)
 		if err != nil {
 			return fmt.Errorf("failed to get previous release spec and tag for release %s tag %s: %v", release.Config.Name, latestTag.Name, err)
 		}
+		previousTag = upgradeSources[0].tag
+		previousReleasePullSpec = upgradeSources[0].pullSpec
 	}
 	spec := pjutil.PeriodicSpec(*periodicWithRelease.Periodic)
 	ok, err := addReleaseEnvToProwJobSpec(&spec, release, mirror, latestTag, previousReleasePullSpec)

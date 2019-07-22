@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/blang/semver"
+	"strings"
 	"time"
 
 	imagev1 "github.com/openshift/api/image/v1"
@@ -100,6 +102,10 @@ type ReleaseConfig struct {
 	// Expires is the amount of time as a golang duration before Accepted release tags
 	// should be expired and removed. If unset, tags are not expired.
 	Expires Duration `json:"expires"`
+
+	// CandidateTests is a map of short names to tests that are run on all terminal releases
+	// marked with keep annotation.
+	CandidateTests map[string]*ReleaseCandidateTest `json:"candidateTests"`
 
 	// Verify is a map of short names to verification steps that must succeed before the
 	// release is Accepted. Failures for some job types will cause the release to be
@@ -205,6 +211,8 @@ type ReleaseVerification struct {
 	//   version (4.2.1 will select the latest accepted 4.2.z tag).
 	// PreviousMinor - selects the latest accepted patch version from the previous minor
 	//   version (4.2.1 will select the latest accepted 4.1.z tag).
+	// RallyPoint - selects all tags after last rally point (latest multiple of 10 patch
+	//     version) from current minor version
 	//
 	// If no matching target exists the job will be a no-op.
 	UpgradeFrom string `json:"upgradeFrom"`
@@ -247,6 +255,29 @@ type ReleasePeriodic struct {
 	ProwJob *ProwJobVerification `json:"prowJob"`
 }
 
+type ReleaseCandidateTest struct {
+	ReleaseVerification
+	// UpgradeTag is the tag that upgrade should be run from.
+	// If empty, upgrade will run from previous accepted ImageStreamTag.
+	// Ignored if Upgrade is not true
+	UpgradeTag string `json:"upgradeTag"`
+	// UpgradeRef is the ref that the upgrade should be run from.
+	// If empty, upgrade will run from previous accepted ImageStreamTag.
+	// Ignored if Upgrade is not true
+	UpgradeRef    string        `json:"upgradeRef"`
+	RetryStrategy RetryStrategy `json:"retryStrategy"`
+}
+
+type RetryStrategy string
+
+const (
+	// Run till MaxRetries
+	RetryStrategyTillMaxRetries RetryStrategy = "TillMaxRetries"
+	// Run till first success, or till MaxRetries limit is reached
+	RetryStrategyFirstSuccess RetryStrategy = "FirstSuccess"
+	DefaultRetryStrategy                    = RetryStrategyFirstSuccess
+)
+
 // ProwJobVerification identifies the name of a prow job that will be used to
 // validate the release.
 type ProwJobVerification struct {
@@ -254,14 +285,25 @@ type ProwJobVerification struct {
 	Name string `json:"name"`
 }
 
+type VerifyJobStatus struct {
+	State string `json:"state"`
+	URL   string `json:"url"`
+}
+
 type VerificationStatus struct {
-	State          string       `json:"state"`
-	URL            string       `json:"url"`
+	VerifyJobStatus
 	Retries        int          `json:"retries,omitempty"`
 	TransitionTime *metav1.Time `json:"transitionTime,omitempty"`
 }
 
+type CandidateTestStatus struct {
+	Status         []*VerifyJobStatus
+	TransitionTime *metav1.Time
+}
+
 type VerificationStatusMap map[string]*VerificationStatus
+
+type VerificationStatusList map[string]*CandidateTestStatus
 
 type ReleasePromoteJobParameters struct {
 	// Parameters for promotion job described at
@@ -342,6 +384,88 @@ func allOptional(all map[string]ReleaseVerification, names ...string) bool {
 	return true
 }
 
+func (m VerificationStatusList) Incomplete(required map[string]*ReleaseCandidateTest) []string {
+	var names []string
+	for name, definition := range required {
+		if definition.Disabled {
+			continue
+		}
+
+		if _, ok := m[name]; !ok {
+			names = append(names, name)
+			continue
+		}
+		testResults := make([]*CandidateTestStatus, 0)
+		if test, ok := m[name]; ok {
+			testResults = append(testResults, test)
+		} else if definition.Upgrade && definition.UpgradeFrom == releaseUpgradeFromRallyPoint {
+			// Check whether all upgrades have completed for rally point upgrades
+			for testName, test := range m {
+				if !strings.HasPrefix(testName, name+"-") {
+					continue
+				}
+				if _, err := semver.ParseTolerant(testName[len(name)+1:]); err != nil {
+					continue
+				}
+				testResults = append(testResults, test)
+			}
+		}
+
+		maxRetries := definition.MaxRetries
+		retryStrategy := definition.RetryStrategy
+		if len(retryStrategy) == 0 {
+			retryStrategy = DefaultRetryStrategy
+		}
+
+		for _, result := range testResults {
+			var completed int
+			for _, s := range result.Status {
+				if !stringSliceContains([]string{releaseVerificationStateSucceeded, releaseVerificationStateFailed}, s.State) {
+					continue
+				}
+				if s.State == releaseVerificationStateSucceeded && retryStrategy == RetryStrategyFirstSuccess {
+					completed = maxRetries + 1
+					break
+				}
+				completed++
+			}
+			if completed >= maxRetries+1 {
+				continue
+			}
+			names = append(names, name)
+			break
+		}
+	}
+	return names
+}
+
+func (t *ReleaseCandidateTest) state(status ...*VerifyJobStatus) string {
+	retryStrategy := t.RetryStrategy
+	if len(retryStrategy) == 0 {
+		retryStrategy = DefaultRetryStrategy
+	}
+	if t.RetryStrategy == RetryStrategyTillMaxRetries && len(status) < t.MaxRetries+1 {
+		return releaseVerificationStatePending
+	}
+	success := 0
+	for _, s := range status {
+		switch s.State {
+		case releaseVerificationStatePending:
+			return s.State
+		case releaseVerificationStateSucceeded:
+			if t.RetryStrategy == RetryStrategyFirstSuccess {
+				return s.State
+			}
+			success++
+		}
+	}
+	if success >= len(status)/2 {
+		// TODO: add success threshold for tests
+		return releaseVerificationStateSucceeded
+	}
+	return releaseVerificationStateFailed
+}
+
 const (
 	// releasePhasePending is assigned to release tags that are waiting for an update
 	// payload image to be created and pushed.
@@ -381,6 +505,7 @@ const (
 	releaseUpgradeFromPreviousPatch  = "PreviousPatch"
 	releaseUpgradeFromPrevious       = "Previous"
 	releaseUpgradeFromPreviousMinus1 = "PreviousMinus1"
+	releaseUpgradeFromRallyPoint     = "RallyPoint"
 
 	// releaseAnnotationConfig is the JSON serialized representation of the ReleaseConfig
 	// struct. It is only accepted on image streams. An image stream with this annotation
@@ -419,6 +544,9 @@ const (
 	// releaseAnnotationBugsVerified indicates whether or not the release has been
 	// processed by the BugzillaVerifier
 	releaseAnnotationBugsVerified = "release.openshift.io/bugs-verified"
+
+	releaseAnnotationAdditionalTests = "release.openshift.io/additional-tests"
+	releaseAnnotationCandidateTests  = "release.openshift.io/candidate-tests"
 )
 
 type Duration time.Duration

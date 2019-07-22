@@ -98,6 +98,16 @@ func parseReleaseConfig(data string, configCache *lru.Cache) (*ReleaseConfig, er
 			}
 		}
 	}
+	for name, test := range cfg.CandidateTests {
+		if len(name) == 0 {
+			return nil, fmt.Errorf("candidateTest config has no name")
+		}
+		if test.ProwJob != nil {
+			if len(test.ProwJob.Name) == 0 {
+				return nil, fmt.Errorf("prow job for %s has no name", name)
+			}
+		}
+	}
 	for name, publish := range cfg.Publish {
 		if len(name) == 0 {
 			return nil, fmt.Errorf("publish config has no name")
@@ -302,16 +312,24 @@ func unsortedSemanticReleaseTags(release *Release, phases ...string) SemanticVer
 	return versions
 }
 
-func firstTagWithMajorMinorSemanticVersion(versions SemanticVersions, version semver.Version) *SemanticVersion {
+func latestTagsWithMajorMinorSemanticVersion(versions SemanticVersions, version semver.Version, count int) []*SemanticVersion {
+	var versionList []*SemanticVersion
 	for i, v := range versions {
 		if v.Version == nil {
 			continue
 		}
 		if v.Version.Major == version.Major && v.Version.Minor == version.Minor {
-			return &versions[i]
+			if versionList == nil {
+				versionList = make([]*SemanticVersion, 0)
+			}
+			versionList = append(versionList, &versions[i])
+			count--
+		}
+		if count <= 0 {
+			break
 		}
 	}
-	return nil
+	return versionList
 }
 
 // sortedReleaseTags returns the tags for a given release in the most appropriate order -
