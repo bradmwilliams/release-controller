@@ -4,6 +4,7 @@
 /release-controller-api
 /release-payload-controller
 /release-reimport-controller
+/release-payload-sync
 /_output
 
 .dccache
