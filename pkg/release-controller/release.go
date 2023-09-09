@@ -329,6 +329,30 @@ func FindPublicImagePullSpec(is *imagev1.ImageStream, name string) string {
 	return ""
 }
 
+func FindPublicImagePullSpecDigest(is *imagev1.ImageStream, name string) string {
+	for i := range is.Status.Tags {
+		tag := &is.Status.Tags[i]
+		if tag.Tag == name {
+			if specTag := FindSpecTag(is.Spec.Tags, name); specTag != nil {
+				if len(tag.Items) == 0 || (specTag.Generation != nil && *specTag.Generation >= tag.Items[0].Generation) {
+					return tag.Items[0].DockerImageReference
+				}
+			}
+			if len(tag.Items) == 0 {
+				return ""
+			}
+			if len(is.Status.PublicDockerImageRepository) > 0 {
+				return fmt.Sprintf("%s@%s", is.Status.PublicDockerImageRepository, tag.Items[0].Image)
+			}
+			if strings.HasPrefix(tag.Items[0].DockerImageReference, is.Status.DockerImageRepository) {
+				return ""
+			}
+			return tag.Items[0].DockerImageReference
+		}
+	}
+	return ""
+}
+
 // UnsortedSemanticReleaseTags returns the tags in the release as a sortable array, but
 // does not sort the array. If phases is specified only tags in the provided phases
 // are returned.

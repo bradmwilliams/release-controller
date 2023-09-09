@@ -503,7 +503,7 @@ func (c *Controller) apiReleaseLatest(w http.ResponseWriter, req *http.Request) 
 	downloadURL, _ := c.urlForArtifacts(latest.Name)
 	resp := releasecontroller.APITag{
 		Name:        latest.Name,
-		PullSpec:    releasecontroller.FindPublicImagePullSpec(r.Target, latest.Name),
+		PullSpec:    releasecontroller.FindPublicImagePullSpecDigest(r.Target, latest.Name),
 		DownloadURL: downloadURL,
 		Phase:       latest.Annotations[releasecontroller.ReleaseAnnotationPhase],
 	}
@@ -586,7 +586,7 @@ func (c *Controller) apiReleaseTags(w http.ResponseWriter, req *http.Request) {
 		}
 		tags = append(tags, releasecontroller.APITag{
 			Name:        tag.Name,
-			PullSpec:    releasecontroller.FindPublicImagePullSpec(r.Release.Target, tag.Name),
+			PullSpec:    releasecontroller.FindPublicImagePullSpecDigest(r.Release.Target, tag.Name),
 			DownloadURL: downloadURL,
 			Phase:       phase,
 		})
@@ -631,7 +631,7 @@ func (c *Controller) apiReleaseInfo(w http.ResponseWriter, req *http.Request) {
 	var changeLog []byte
 	var changeLogJson releasecontroller.ChangeLog
 
-	if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpec) > 0 && len(tagInfo.TagPullSpec) > 0 {
+	if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpecDigest) > 0 && len(tagInfo.TagPullSpecDigest) > 0 {
 		var wg sync.WaitGroup
 		renderHTML := renderResult{}
 		renderJSON := renderResult{}
@@ -692,7 +692,7 @@ func (c *Controller) changeLogWorker(result *renderResult, tagInfo *releaseTagIn
 	ch := make(chan renderResult)
 
 	// run the changelog in a goroutine because it may take significant time
-	go c.getChangeLog(ch, tagInfo.PreviousTagPullSpec, tagInfo.Info.Previous.Name, tagInfo.TagPullSpec, tagInfo.Info.Tag.Name, format)
+	go c.getChangeLog(ch, tagInfo.PreviousTagPullSpecDigest, tagInfo.Info.Previous.Name, tagInfo.TagPullSpecDigest, tagInfo.Info.Tag.Name, format)
 
 	select {
 	case *result = <-ch:
@@ -826,7 +826,7 @@ func (c *Controller) httpReleaseInfoJson(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	tagPullSpec := releasecontroller.FindPublicImagePullSpec(tags[tag].Release.Target, tag)
+	tagPullSpec := releasecontroller.FindPublicImagePullSpecDigest(tags[tag].Release.Target, tag)
 	if len(tagPullSpec) == 0 {
 		http.Error(w, fmt.Sprintf("could not find pull spec for tag %s in image stream %s", tag, tags[tag].Release.Target.Name), http.StatusBadRequest)
 		return
@@ -877,10 +877,10 @@ func (c *Controller) httpReleaseInfoDownload(w http.ResponseWriter, req *http.Re
 }
 
 type releaseTagInfo struct {
-	Tag                 string
-	Info                *ReleaseStreamTag
-	TagPullSpec         string
-	PreviousTagPullSpec string
+	Tag                       string
+	Info                      *ReleaseStreamTag
+	TagPullSpecDigest         string
+	PreviousTagPullSpecDigest string
 }
 
 func (c *Controller) getReleaseTagInfo(req *http.Request) (*releaseTagInfo, error) {
@@ -920,17 +920,17 @@ func (c *Controller) getReleaseTagInfo(req *http.Request) (*releaseTagInfo, erro
 	}
 
 	// require public pull specs because we can't get the x509 cert for the internal registry without service-ca.crt
-	tagPull := releasecontroller.FindPublicImagePullSpec(info.Release.Target, info.Tag.Name)
-	var previousTagPull string
+	tagPullDigest := releasecontroller.FindPublicImagePullSpecDigest(info.Release.Target, info.Tag.Name)
+	var previousTagPullDigest string
 	if info.Previous != nil {
-		previousTagPull = releasecontroller.FindPublicImagePullSpec(info.PreviousRelease.Target, info.Previous.Name)
+		previousTagPullDigest = releasecontroller.FindPublicImagePullSpecDigest(info.PreviousRelease.Target, info.Previous.Name)
 	}
 
 	return &releaseTagInfo{
-		Tag:                 tag,
-		Info:                info,
-		TagPullSpec:         tagPull,
-		PreviousTagPullSpec: previousTagPull,
+		Tag:                       tag,
+		Info:                      info,
+		TagPullSpecDigest:         tagPullDigest,
+		PreviousTagPullSpecDigest: previousTagPullDigest,
 	}, nil
 }
 
@@ -1245,9 +1245,9 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 	// Disable the installation instructions for manifest list based releases
 	switch c.architecture {
 	case "multi":
-		renderMultiArchPullSpec(w, tagInfo.TagPullSpec)
+		renderMultiArchPullSpec(w, tagInfo.TagPullSpecDigest)
 	default:
-		renderInstallInstructions(w, mirror, tagInfo.Info.Tag, tagInfo.TagPullSpec, c.artifactsHost)
+		renderInstallInstructions(w, mirror, tagInfo.Info.Tag, tagInfo.TagPullSpecDigest, c.artifactsHost)
 	}
 
 	c.renderVerifyLinks(w, *tagInfo.Info.Tag, tagInfo.Info.Release)
@@ -1256,7 +1256,7 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 
 	var missingUpgrades []string
 	upgradeFound := make(map[string]bool)
-	supportedUpgrades, _ := c.getSupportedUpgrades(tagInfo.TagPullSpec)
+	supportedUpgrades, _ := c.getSupportedUpgrades(tagInfo.TagPullSpecDigest)
 	if len(supportedUpgrades) > 0 {
 		for _, u := range upgradesTo {
 			upgradeFound[u.From] = true
@@ -1378,9 +1378,9 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, `</ul>`)
 	}
 
-	if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpec) > 0 && len(tagInfo.TagPullSpec) > 0 {
+	if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpecDigest) > 0 && len(tagInfo.TagPullSpecDigest) > 0 {
 		fmt.Fprintln(w, "<hr>")
-		c.renderChangeLog(w, tagInfo.PreviousTagPullSpec, tagInfo.Info.Previous.Name, tagInfo.TagPullSpec, tagInfo.Info.Tag.Name, "html")
+		c.renderChangeLog(w, tagInfo.PreviousTagPullSpecDigest, tagInfo.Info.Previous.Name, tagInfo.TagPullSpecDigest, tagInfo.Info.Tag.Name, "html")
 	}
 
 	var options []string
