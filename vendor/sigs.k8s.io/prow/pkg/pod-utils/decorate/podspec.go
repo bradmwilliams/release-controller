@@ -18,7 +18,6 @@ package decorate
 
 import (
 	"fmt"
-	"maps"
 	"path"
 	"path/filepath"
 	"sort"
@@ -145,7 +144,9 @@ func LabelsAndAnnotationsForSpec(spec prowapi.ProwJobSpec, extraLabels, extraAnn
 		}
 	}
 
-	maps.Copy(labels, extraLabels)
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
 
 	// let's validate labels
 	for key, value := range labels {
@@ -165,7 +166,9 @@ func LabelsAndAnnotationsForSpec(spec prowapi.ProwJobSpec, extraLabels, extraAnn
 		}
 	}
 
-	maps.Copy(annotations, extraAnnotations)
+	for k, v := range extraAnnotations {
+		annotations[k] = v
+	}
 
 	return labels, annotations
 }

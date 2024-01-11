@@ -378,6 +378,7 @@ func getAllLinkedBugs(c Client, bugID int, bugCache *bugDetailsCache, errGroup *
 
 func traverseUp(c Client, bug *Bug, bugCache *bugDetailsCache, errGroup *errgroup.Group) error {
 	for _, dependsOnID := range bug.DependsOn {
+		dependsOnID := dependsOnID
 		errGroup.Go(func() error {
 			_, alreadyFetched := bugCache.get(dependsOnID)
 			if alreadyFetched {
@@ -399,6 +400,7 @@ func traverseUp(c Client, bug *Bug, bugCache *bugDetailsCache, errGroup *errgrou
 
 func traverseDown(c Client, bug *Bug, bugCache *bugDetailsCache, errGroup *errgroup.Group) error {
 	for _, childID := range bug.Blocks {
+		childID := childID
 		errGroup.Go(func() error {
 			_, alreadyFetched := bugCache.get(childID)
 			if alreadyFetched {

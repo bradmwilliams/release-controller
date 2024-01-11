@@ -24,14 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,9 +40,9 @@ import (
 	gitignore "github.com/denormal/go-gitignore"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	"gopkg.in/robfig/cron.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -61,10 +59,6 @@ import (
 	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/pod-utils/decorate"
 	"sigs.k8s.io/prow/pkg/pod-utils/downwardapi"
-)
-
-var cronParser = cron.NewParser(
-	cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
 const (
@@ -278,8 +272,10 @@ func (c *Config) InRepoConfigEnabled(identifier string) bool {
 // Assumes that config will not include http:// or https://
 func (c *Config) InRepoConfigAllowsCluster(clusterName, identifier string) bool {
 	for _, key := range keysForIdentifier(identifier) {
-		if slices.Contains(c.InRepoConfig.AllowedClusters[key], clusterName) {
-			return true
+		for _, allowedCluster := range c.InRepoConfig.AllowedClusters[key] {
+			if allowedCluster == clusterName {
+				return true
+			}
 		}
 	}
 	return false
@@ -1924,7 +1920,7 @@ func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string,
 }
 
 // yamlToConfig converts a yaml file into a Config object.
-func yamlToConfig(path string, nc any, opts ...yaml.JSONOpt) error {
+func yamlToConfig(path string, nc interface{}, opts ...yaml.JSONOpt) error {
 	b, err := ReadFileMaybeGZIP(path)
 	if err != nil {
 		return fmt.Errorf("error reading %s: %w", path, err)
@@ -2035,14 +2031,18 @@ func mergeJobConfigs(a, b JobConfig) (JobConfig, error) {
 
 	// *** Presubmits ***
 	c.PresubmitsStatic = make(map[string][]Presubmit)
-	maps.Copy(c.PresubmitsStatic, a.PresubmitsStatic)
+	for repo, jobs := range a.PresubmitsStatic {
+		c.PresubmitsStatic[repo] = jobs
+	}
 	for repo, jobs := range b.PresubmitsStatic {
 		c.PresubmitsStatic[repo] = append(c.PresubmitsStatic[repo], jobs...)
 	}
 
 	// *** Postsubmits ***
 	c.PostsubmitsStatic = make(map[string][]Postsubmit)
-	maps.Copy(c.PostsubmitsStatic, a.PostsubmitsStatic)
+	for repo, jobs := range a.PostsubmitsStatic {
+		c.PostsubmitsStatic[repo] = jobs
+	}
 	for repo, jobs := range b.PostsubmitsStatic {
 		c.PostsubmitsStatic[repo] = append(c.PostsubmitsStatic[repo], jobs...)
 	}
@@ -2439,7 +2439,7 @@ func (c Config) validatePeriodics(periodics []Periodic) error {
 		}
 
 		if p.Cron != "" {
-			if _, err := cronParser.Parse(p.Cron); err != nil {
+			if _, err := cron.Parse(p.Cron); err != nil {
 				errs = append(errs, fmt.Errorf("invalid cron string %s in periodic %s: %w", p.Cron, p.Name, err))
 			}
 		}
@@ -2777,14 +2777,6 @@ func parseProwConfig(c *Config) error {
 		}
 	}
 
-	for key, policy := range c.Tide.GitHubMergeBlocksPolicyMap {
-		switch policy {
-		case GitHubMergeBlocksIgnore, GitHubMergeBlocksPermit, GitHubMergeBlocksBlock:
-		default:
-			return fmt.Errorf("tide.github_merge_blocks_policy[%q] has invalid value %q, must be one of: ignore, permit, block", key, policy)
-		}
-	}
-
 	if c.ProwJobNamespace == "" {
 		c.ProwJobNamespace = "default"
 	}
@@ -2877,8 +2869,10 @@ func parseTideMergeType(tideMergeTypes map[string]TideOrgMergeType) utilerrors.A
 
 func validateLabels(labels map[string]string) error {
 	for label, value := range labels {
-		if slices.Contains(decorate.Labels(), label) {
-			return fmt.Errorf("label %s is reserved for decoration", label)
+		for _, prowLabel := range decorate.Labels() {
+			if label == prowLabel {
+				return fmt.Errorf("label %s is reserved for decoration", label)
+			}
 		}
 		if errs := validation.IsQualifiedName(label); len(errs) != 0 {
 			return fmt.Errorf("invalid label %s: %v", label, errs)

@@ -150,18 +150,18 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 	srcBase := fmt.Sprintf("%s/%s", spec.Refs.Org, spec.Refs.Repo)
 
 	if spec.Refs.PathAlias != "" {
-		if h, b, ok := strings.Cut(spec.Refs.PathAlias, "/"); ok {
-			srcHost, srcBase = h, b
-		} else {
-			srcHost = spec.Refs.PathAlias
+		srcHost = spec.Refs.PathAlias
+		if idx := strings.Index(spec.Refs.PathAlias, "/"); idx != -1 {
+			srcHost = spec.Refs.PathAlias[:idx]
+			srcBase = spec.Refs.PathAlias[idx+1:]
 		}
 	} else if spec.Refs.RepoLink != "" {
 		parts := strings.Split(spec.Refs.RepoLink, "://")
 		hostAndPath := parts[len(parts)-1]
-		if h, b, ok := strings.Cut(hostAndPath, "/"); ok {
-			srcHost, srcBase = h, b
-		} else {
-			srcHost = hostAndPath
+		srcHost = hostAndPath
+		if idx := strings.Index(hostAndPath, "/"); idx != -1 {
+			srcHost = hostAndPath[:idx]
+			srcBase = hostAndPath[idx+1:]
 		}
 	}
 	env[SrcHostEnv] = srcHost
@@ -217,14 +217,11 @@ func getRevisionFromRef(refs *prowapi.Refs) string {
 	return refs.BaseRef
 }
 
-// GetRevisionFromSpec returns a main ref or sha from a spec object.
-// Auxiliary extra references are ignored.
+// GetRevisionFromSpec returns a main ref or sha from a spec object
 func GetRevisionFromSpec(jobSpec *JobSpec) string {
 	return GetRevisionFromRefs(jobSpec.Refs, jobSpec.ExtraRefs)
 }
 
-// GetRevisionFromRefs returns a main ref or sha from main (if available) or extra references.
-// Auxiliary extra references are ignored.
 func GetRevisionFromRefs(refs *prowapi.Refs, extra []prowapi.Refs) string {
 	return getRevisionFromRef(mainRefs(refs, extra))
 }
@@ -233,10 +230,8 @@ func mainRefs(refs *prowapi.Refs, extra []prowapi.Refs) *prowapi.Refs {
 	if refs != nil {
 		return refs
 	}
-	for i := range extra {
-		if !extra[i].Auxiliary {
-			return &extra[i]
-		}
+	if len(extra) > 0 {
+		return &extra[0]
 	}
 	return nil
 }

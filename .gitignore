@@ -17,5 +17,5 @@ coverage.out
 golangci-lint.out
 report.json
 
-# Local output from hack/changelog-preview (go run … > sample-changelog.md)
-hack/changelog-preview/sample-changelog.md
+cmd/test-harness/
+/test-harness

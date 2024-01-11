@@ -20,7 +20,6 @@ package secret
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,7 +34,6 @@ var secretAgent *agent
 func init() {
 	secretAgent = &agent{
 		secretsMap:        map[string]secretReloader{},
-		expiringTokens:    make(map[string]time.Time),
 		ReloadingCensorer: secretutil.NewCensorer(),
 	}
 	logrus.SetFormatter(logrusutil.NewFormatterWithCensor(logrus.StandardLogger().Formatter, secretAgent.ReloadingCensorer))
@@ -46,7 +44,6 @@ func init() {
 // censoring formatter that removes secret occurrences from the logs.
 func (a *agent) Start(paths []string) error {
 	a.secretsMap = make(map[string]secretReloader, len(paths))
-	a.expiringTokens = make(map[string]time.Time)
 	a.ReloadingCensorer = secretutil.NewCensorer()
 
 	for _, path := range paths {
@@ -97,18 +94,11 @@ func Censor(content []byte) []byte {
 	return secretAgent.Censor(content)
 }
 
-// AddExpiringToken registers value until expiration.
-func AddExpiringToken(value string, expiresAt time.Time) {
-	secretAgent.addExpiringToken(value, expiresAt)
-}
-
 // agent watches a path and automatically loads the secrets stored.
 type agent struct {
 	sync.RWMutex
+	secretsMap map[string]secretReloader
 	*secretutil.ReloadingCensorer
-
-	secretsMap     map[string]secretReloader
-	expiringTokens map[string]time.Time
 }
 
 type secretReloader interface {
@@ -154,21 +144,12 @@ func (a *agent) setSecret(secretPath string, secretValue secretReloader) {
 
 // refreshCensorer should be called when the secrets map changes
 func (a *agent) refreshCensorer() {
-	now := time.Now()
-	a.Lock()
-	for s, exp := range a.expiringTokens {
-		if !exp.After(now) {
-			delete(a.expiringTokens, s)
-		}
-	}
 	var secrets [][]byte
+	a.RLock()
 	for _, value := range a.secretsMap {
 		secrets = append(secrets, value.getRaw())
 	}
-	for s := range a.expiringTokens {
-		secrets = append(secrets, []byte(s))
-	}
-	a.Unlock()
+	a.RUnlock()
 	a.ReloadingCensorer.RefreshBytes(secrets...)
 }
 
@@ -198,18 +179,5 @@ func (a *agent) getSecrets() sets.Set[string] {
 	for _, v := range a.secretsMap {
 		secrets.Insert(string(v.getRaw()))
 	}
-	for token := range a.expiringTokens {
-		secrets.Insert(token)
-	}
 	return secrets
-}
-
-func (a *agent) addExpiringToken(value string, expiresAt time.Time) {
-	if value == "" || expiresAt.IsZero() {
-		return
-	}
-	a.Lock()
-	a.expiringTokens[value] = expiresAt
-	a.Unlock()
-	a.refreshCensorer()
 }

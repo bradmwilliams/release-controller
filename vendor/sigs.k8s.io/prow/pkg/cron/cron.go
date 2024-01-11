@@ -22,16 +22,12 @@ import (
 	"strings"
 	"sync"
 
-	cron "github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
+	cron "gopkg.in/robfig/cron.v2" // using v2 api, doc at https://godoc.org/gopkg.in/robfig/cron.v2
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/config"
-)
-
-var cronParser = cron.NewParser(
-	cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
 // jobStatus is a cache layer for tracking existing cron jobs
@@ -56,7 +52,7 @@ type Cron struct {
 // New makes a new Cron object
 func New() *Cron {
 	return &Cron{
-		cronAgent: cron.New(cron.WithParser(cronParser)),
+		cronAgent: cron.New(),
 		jobs:      map[string]*jobStatus{},
 		logger:    logrus.WithField("client", "cron"),
 	}
@@ -160,6 +156,7 @@ func (c *Cron) addJob(name, cron string) error {
 		c.jobs[name].triggered = true
 		c.logger.Infof("Triggering cron job %s.", name)
 	})
+
 	if err != nil {
 		return fmt.Errorf("cronAgent fails to add job %s with cron %s: %w", name, cron, err)
 	}

@@ -71,7 +71,6 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
-	"maps"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -80,7 +79,7 @@ import (
 	"unicode"
 
 	"github.com/clarketm/json"
-	yaml3 "go.yaml.in/yaml/v3"
+	yaml3 "gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -162,7 +161,7 @@ type Comment struct {
 }
 
 // marshal marshals the object into JSON then converts JSON to YAML and returns the YAML.
-func marshal(o any) ([]byte, error) {
+func marshal(o interface{}) ([]byte, error) {
 	j, err := json.Marshal(o)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling into JSON: %w", err)
@@ -179,7 +178,7 @@ func marshal(o any) ([]byte, error) {
 // jsonToYaml Converts JSON to YAML.
 func jsonToYaml(j []byte) ([]byte, error) {
 	// Convert the JSON to an object.
-	var jsonObj any
+	var jsonObj interface{}
 	// We are using yaml.Unmarshal here (instead of json.Unmarshal) because the
 	// Go JSON library doesn't try to pick the right number type (int, float,
 	// etc.) when unmarshalling to interface{}, it just picks float64
@@ -229,7 +228,7 @@ func fmtRawDoc(rawDoc string) string {
 	// Ignore all lines after ---.
 	rawDoc = strings.Split(rawDoc, "---")[0]
 
-	for line := range strings.SplitSeq(rawDoc, "\n") {
+	for _, line := range strings.Split(rawDoc, "\n") {
 		line = strings.TrimSpace(line) // Trim leading and trailing whitespace.
 		switch {
 		case strings.HasPrefix(line, "TODO"): // Ignore one line TODOs.
@@ -332,9 +331,9 @@ func isBuiltinType(typeName string) bool {
 }
 
 // getType returns the type's name within its package for a defined type. For other (non-defined) types it returns the empty string.
-func getType(typ any) string {
+func getType(typ interface{}) string {
 	t := reflect.TypeOf(typ)
-	if t.Kind() == reflect.Pointer {
+	if t.Kind() == reflect.Ptr {
 		return t.Elem().Name()
 	}
 	return t.Name()
@@ -398,7 +397,9 @@ func (cm *CommentMap) genDocMap(packageFiles []string, rawFiles map[string][]byt
 	// struct is missing
 	for typeSpecName, inlined := range inlineFields {
 		for _, inlinedType := range inlined {
-			maps.Copy(cm.comments[typeSpecName], cm.comments[inlinedType])
+			for tagName, comment := range cm.comments[inlinedType] {
+				cm.comments[typeSpecName][tagName] = comment
+			}
 		}
 	}
 
@@ -477,7 +478,7 @@ func (cm *CommentMap) addPackage(paths []string, rawFiles map[string][]byte, imp
 }
 
 // GenYaml generates a fully commented YAML snippet for a given plugin configuration.
-func (cm *CommentMap) GenYaml(config any) (string, error) {
+func (cm *CommentMap) GenYaml(config interface{}) (string, error) {
 	var buffer bytes.Buffer
 
 	encoder := yaml3.NewEncoder(&buffer)
@@ -492,7 +493,7 @@ func (cm *CommentMap) GenYaml(config any) (string, error) {
 
 // EncodeYaml encodes a fully commented YAML snippet for a given plugin configuration
 // using the given encoder.
-func (cm *CommentMap) EncodeYaml(config any, encoder *yaml3.Encoder) error {
+func (cm *CommentMap) EncodeYaml(config interface{}, encoder *yaml3.Encoder) error {
 	cm.RLock()
 	defer cm.RUnlock()
 

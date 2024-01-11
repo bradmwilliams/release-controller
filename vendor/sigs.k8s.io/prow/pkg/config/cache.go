@@ -120,7 +120,7 @@ func init() {
 }
 
 func mkCacheEventCallback(counterVec *prometheus.CounterVec) cache.EventCallback {
-	callback := func(key any) {
+	callback := func(key interface{}) {
 		org, repo, err := keyToOrgRepo(key)
 		if err != nil {
 			return
@@ -164,7 +164,7 @@ func NewInRepoConfigCache(
 	lookupsCallback := mkCacheEventCallback(inRepoConfigCacheMetrics.lookups)
 	hitsCallback := mkCacheEventCallback(inRepoConfigCacheMetrics.hits)
 	missesCallback := mkCacheEventCallback(inRepoConfigCacheMetrics.misses)
-	forcedEvictionsCallback := func(key any, _ any) {
+	forcedEvictionsCallback := func(key interface{}, _ interface{}) {
 		org, repo, err := keyToOrgRepo(key)
 		if err != nil {
 			return
@@ -278,7 +278,7 @@ func (cacheKey CacheKey) toCacheKeyParts() (CacheKeyParts, error) {
 	return kp, nil
 }
 
-func keyToOrgRepo(key any) (string, string, error) {
+func keyToOrgRepo(key interface{}) (string, string, error) {
 
 	cacheKey, ok := key.(CacheKey)
 	if !ok {
@@ -414,7 +414,7 @@ func (cache *InRepoConfigCache) getProwYAML(
 		return nil, err
 	}
 
-	valConstructor := func() (any, error) {
+	valConstructor := func() (interface{}, error) {
 		return valConstructorHelper(cache.gitClient, identifier, baseBranch, baseSHAGetter, headSHAGetters...)
 	}
 

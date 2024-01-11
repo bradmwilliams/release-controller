@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"strings"
@@ -160,6 +159,7 @@ const errorKey = "sidecar-errors"
 func logReadersFuncs(entries []wrapper.Options) map[string]gcs.ReaderFunc {
 	readerFuncs := make(map[string]gcs.ReaderFunc)
 	for _, opt := range entries {
+		opt := opt
 		f := func() (io.ReadCloser, error) {
 			log, err := os.Open(opt.ProcessLog)
 			if err != nil {
@@ -179,9 +179,9 @@ func logReadersFuncs(entries []wrapper.Options) map[string]gcs.ReaderFunc {
 	return readerFuncs
 }
 
-func combineMetadata(entries []wrapper.Options) map[string]any {
+func combineMetadata(entries []wrapper.Options) map[string]interface{} {
 	errors := map[string]error{}
-	metadata := map[string]any{}
+	metadata := map[string]interface{}{}
 	for i, opt := range entries {
 		ent := nameEntry(i, opt)
 		metadataFile := opt.MetadataFile
@@ -199,15 +199,16 @@ func combineMetadata(entries []wrapper.Options) map[string]any {
 			continue
 		}
 
-		piece := map[string]any{}
+		piece := map[string]interface{}{}
 		if err := json.Unmarshal(metadataRaw, &piece); err != nil {
 			logrus.WithError(err).Errorf("Failed to unmarshal %s", metadataFile)
 			errors[ent] = err
 			continue
 		}
 
-		// TODO(fejta): consider deeper merge
-		maps.Copy(metadata, piece)
+		for k, v := range piece {
+			metadata[k] = v // TODO(fejta): consider deeper merge
+		}
 	}
 	if len(errors) > 0 {
 		metadata[errorKey] = errors
@@ -229,7 +230,7 @@ func (o Options) preUpload() {
 	}
 }
 
-func (o Options) doUpload(ctx context.Context, spec *downwardapi.JobSpec, passed, aborted bool, metadata map[string]any, logReadersFuncs map[string]gcs.ReaderFunc, logFile *os.File, once *sync.Once) error {
+func (o Options) doUpload(ctx context.Context, spec *downwardapi.JobSpec, passed, aborted bool, metadata map[string]interface{}, logReadersFuncs map[string]gcs.ReaderFunc, logFile *os.File, once *sync.Once) error {
 	startTime := time.Now()
 	logrus.Info("Starting to upload")
 	uploadTargets := make(map[string]gcs.UploadFunc)

@@ -143,9 +143,11 @@ func Context() context.Context {
 // of the wait group on shutdown.
 func Run(work func(ctx context.Context)) {
 	ctx, cancel := context.WithCancel(context.Background())
-	single.wg.Go(func() {
+	single.wg.Add(1)
+	go func() {
+		defer single.wg.Done()
 		work(ctx)
-	})
+	}()
 
 	go wait(cancel)
 }
@@ -161,9 +163,11 @@ type ListenAndServer interface {
 // are expected to exit only after WaitForGracefulShutdown returns to
 // ensure all servers have had time to shut down.
 func ListenAndServe(server ListenAndServer, gracePeriod time.Duration) {
-	single.wg.Go(func() {
+	single.wg.Add(1)
+	go func() {
+		defer single.wg.Done()
 		logrus.WithError(server.ListenAndServe()).Info("Server exited.")
-	})
+	}()
 
 	go wait(shutdown(server, gracePeriod))
 }
@@ -173,9 +177,11 @@ func ListenAndServe(server ListenAndServer, gracePeriod time.Duration) {
 // are expected to exit only after WaitForGracefulShutdown returns to
 // ensure all servers have had time to shut down.
 func ListenAndServeTLS(server *http.Server, certFile, keyFile string, gracePeriod time.Duration) {
-	single.wg.Go(func() {
+	single.wg.Add(1)
+	go func() {
+		defer single.wg.Done()
 		logrus.WithError(server.ListenAndServeTLS(certFile, keyFile)).Info("Server exited.")
-	})
+	}()
 
 	go wait(shutdown(server, gracePeriod))
 }
@@ -204,7 +210,9 @@ func shutdown(server Shutdownable, gracePeriod time.Duration) func() {
 func Tick(work func(), interval func() time.Duration) {
 	before := time.Time{} // we want to do work right away
 	sig := make(chan int, 1)
-	single.wg.Go(func() {
+	single.wg.Add(1)
+	go func() {
+		defer single.wg.Done()
 		for {
 			nextInterval := interval()
 			nextTick := before.Add(nextInterval)
@@ -223,7 +231,7 @@ func Tick(work func(), interval func() time.Duration) {
 				return
 			}
 		}
-	})
+	}()
 
 	go wait(func() {
 		sig <- 1

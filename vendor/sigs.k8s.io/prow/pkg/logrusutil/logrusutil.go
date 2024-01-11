@@ -18,7 +18,6 @@ limitations under the License.
 package logrusutil
 
 import (
-	"maps"
 	"sync"
 	"time"
 
@@ -73,8 +72,12 @@ func (f *DefaultFieldsFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	data := make(logrus.Fields, len(entry.Data)+len(f.DefaultFields)+1)
 	// GCP's log collection expects a "severity" field instead of "level"
 	data["severity"] = entry.Level
-	maps.Copy(data, f.DefaultFields)
-	maps.Copy(data, entry.Data)
+	for k, v := range f.DefaultFields {
+		data[k] = v
+	}
+	for k, v := range entry.Data {
+		data[k] = v
+	}
 	return f.WrappedFormatter.Format(&logrus.Entry{
 		Logger:  entry.Logger,
 		Data:    data,
@@ -125,7 +128,7 @@ func NewFormatterWithCensor(f logrus.Formatter, censorer secretutil.Censorer) Ce
 }
 
 // ThrottledWarnf prints a warning the first time called and if at most `period` has elapsed since the last time.
-func ThrottledWarnf(last *time.Time, period time.Duration, format string, args ...any) {
+func ThrottledWarnf(last *time.Time, period time.Duration, format string, args ...interface{}) {
 	if throttleCheck(last, period) {
 		logrus.Warnf(format, args...)
 	}
