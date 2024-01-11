@@ -13,3 +13,6 @@ python-env
 coverage.out
 golangci-lint.out
 report.json
+
+cmd/test-harness/
+/test-harness
