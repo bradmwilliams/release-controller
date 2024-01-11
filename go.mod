@@ -14,6 +14,7 @@ replace (
 
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.17.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.17.0
+	sigs.k8s.io/prow => sigs.k8s.io/prow v0.0.0-20260227184331-937f24a5dcd2
 )
 
 require (

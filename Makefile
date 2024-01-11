@@ -16,7 +16,7 @@ SOURCE_GIT_TAG=v1.0.0+$(shell git rev-parse --short=7 HEAD)
 
 GOLINT=golangci-lint
 
-GO_LD_EXTRAFLAGS=-X github.com/openshift/release-controller/vendor/k8s.io/client-go/pkg/version.gitCommit=$(shell git rev-parse HEAD) -X github.com/openshift/release-controller/vendor/k8s.io/client-go/pkg/version.gitVersion=${SOURCE_GIT_TAG} -X k8s.io/test-infra/prow/version.Name=release-controller -X k8s.io/test-infra/prow/version.Version=${version}
+GO_LD_EXTRAFLAGS=-X github.com/openshift/release-controller/vendor/k8s.io/client-go/pkg/version.gitCommit=$(shell git rev-parse HEAD) -X github.com/openshift/release-controller/vendor/k8s.io/client-go/pkg/version.gitVersion=${SOURCE_GIT_TAG} -X sigs.k8s.io/prow/version.Name=release-controller -X sigs.k8s.io/prow/version.Version=${version}
 GO_TEST_FLAGS=
 export CGO_ENABLED := 0
 

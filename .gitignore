@@ -16,3 +16,6 @@ __pycache__/
 coverage.out
 golangci-lint.out
 report.json
+
+cmd/test-harness/
+/test-harness
