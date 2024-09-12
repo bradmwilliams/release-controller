@@ -421,7 +421,7 @@ func TestPayloadRejectedSync(t *testing.T) {
 						{
 							Type:    v1alpha1.ConditionPayloadRejected,
 							Status:  metav1.ConditionTrue,
-							Reason:  ReleasePayloadCreationFailedReason,
+							Reason:  ReleasePayloadCreationJobFailedReason,
 							Message: "BackoffLimitExceeded: Job has reached the specified backoff limit",
 						},
 					},
@@ -450,7 +450,7 @@ func TestPayloadRejectedSync(t *testing.T) {
 					releasePayloadInformer,
 					releasePayloadClient.ReleaseV1alpha1(),
 					events.NewInMemoryRecorder("payload-rejected-controller-test"),
-					workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "PayloadRejectedController")),
+					workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{Name: "PayloadRejectedController"})),
 			}
 
 			releasePayloadInformer.Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{

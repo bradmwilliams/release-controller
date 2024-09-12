@@ -19,31 +19,31 @@ import (
 )
 
 const (
-	// ReleasePayloadCreationJobFailedReason programmatic identifier indicating that the ReleasePayload was not created successfully
-	ReleasePayloadCreationJobFailedReason string = "ReleasePayloadCreationJobFailed"
+	// ReleasePayloadMirrorJobFailedReason programmatic identifier indicating that the ReleasePayload was not mirror successfully
+	ReleasePayloadMirrorJobFailedReason string = "ReleasePayloadMirrorJobFailed"
 )
 
-// ReleaseCreationJobController is responsible for writing the coordinates of the release creation job.
+// ReleaseMirrorJobController is responsible for writing the coordinates of the release mirror job.
 // The jobsNamespace is populated from a command-line parameter and contains the namespace where
-// the release-controller creates the release creation batch/v1 jobs.
-// The ReleaseCreationJobController writes the following pieces of information:
-//   - .status.ReleaseCreationJobResult.ReleaseCreationJobCoordinates.Namespace
-//   - .status.ReleaseCreationJobResult.ReleaseCreationJobCoordinates.Name
-type ReleaseCreationJobController struct {
+// the release-controller creates the release mirror batch/v1 jobs.
+// The ReleaseMirrorJobController writes the following pieces of information:
+//   - .status.ReleaseMirrorJobResult.ReleaseMirrorJobCoordinates.Namespace
+//   - .status.ReleaseMirrorJobResult.ReleaseMirrorJobCoordinates.Name
+type ReleaseMirrorJobController struct {
 	*ReleasePayloadController
 }
 
-func NewReleaseCreationJobController(
+func NewReleaseMirrorJobController(
 	releasePayloadInformer releasepayloadinformer.ReleasePayloadInformer,
 	releasePayloadClient releasepayloadclient.ReleaseV1alpha1Interface,
 	eventRecorder events.Recorder,
-) (*ReleaseCreationJobController, error) {
-	c := &ReleaseCreationJobController{
-		ReleasePayloadController: NewReleasePayloadController("Release Creation Job Controller",
+) (*ReleaseMirrorJobController, error) {
+	c := &ReleaseMirrorJobController{
+		ReleasePayloadController: NewReleasePayloadController("Release Mirror Job Controller",
 			releasePayloadInformer,
 			releasePayloadClient,
-			eventRecorder.WithComponentSuffix("release-creation-job-controller"),
-			workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{Name: "ReleaseCreationJobController"})),
+			eventRecorder.WithComponentSuffix("release-mirror-job-controller"),
+			workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{Name: "ReleaseMirrorJobController"})),
 	}
 
 	c.syncFn = c.sync
@@ -59,9 +59,9 @@ func NewReleaseCreationJobController(
 	return c, nil
 }
 
-func (c *ReleaseCreationJobController) sync(ctx context.Context, key string) error {
-	klog.V(4).Infof("Starting ReleaseCreationJobController sync")
-	defer klog.V(4).Infof("ReleaseCreationJobController sync done")
+func (c *ReleaseMirrorJobController) sync(ctx context.Context, key string) error {
+	klog.V(4).Infof("Starting ReleaseMirrorJobController sync")
+	defer klog.V(4).Infof("ReleaseMirrorJobController sync done")
 
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -83,20 +83,20 @@ func (c *ReleaseCreationJobController) sync(ctx context.Context, key string) err
 	}
 
 	// If the Coordinates are already set, then don't do anything...
-	if len(originalReleasePayload.Status.ReleaseCreationJobResult.Coordinates.Namespace) > 0 && len(originalReleasePayload.Status.ReleaseCreationJobResult.Coordinates.Name) > 0 {
+	if len(originalReleasePayload.Status.ReleaseMirrorJobResult.Coordinates.Namespace) > 0 && len(originalReleasePayload.Status.ReleaseMirrorJobResult.Coordinates.Name) > 0 {
 		return nil
 	}
 
-	klog.V(4).Infof("Syncing ReleaseCreationJobResult for ReleasePayload: %s/%s", originalReleasePayload.Namespace, originalReleasePayload.Name)
+	klog.V(4).Infof("Syncing ReleaseMirrorJobResult for ReleasePayload: %s/%s", originalReleasePayload.Namespace, originalReleasePayload.Name)
 
 	releasePayload := originalReleasePayload.DeepCopy()
 
-	// Updating the ReleaseCreationJobResult.  Blanking out the Status and the Message forces the
-	// release_creation_status_controller to rediscover and set them accordingly.
-	releasePayload.Status.ReleaseCreationJobResult = v1alpha1.ReleaseCreationJobResult{
-		Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
-			Name:      originalReleasePayload.Spec.PayloadCreationConfig.ReleaseCreationCoordinates.ReleaseCreationJobName,
-			Namespace: originalReleasePayload.Spec.PayloadCreationConfig.ReleaseCreationCoordinates.Namespace,
+	// Updating the ReleaseMirrorJobResult.  Blanking out the Status and the Message forces the
+	// release_mirror_job_status_controller to rediscover and set them accordingly.
+	releasePayload.Status.ReleaseMirrorJobResult = v1alpha1.ReleaseMirrorJobResult{
+		Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
+			Name:      originalReleasePayload.Spec.PayloadCreationConfig.ReleaseMirrorCoordinates.ReleaseMirrorJobName,
+			Namespace: originalReleasePayload.Spec.PayloadCreationConfig.ReleaseMirrorCoordinates.Namespace,
 		},
 	}
 

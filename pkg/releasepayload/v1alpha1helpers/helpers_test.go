@@ -44,10 +44,16 @@ func TestCanonicalize(t *testing.T) {
 							Type: v1alpha1.ConditionPayloadRejected,
 						},
 						{
+							Type: v1alpha1.ConditionPayloadMirrored,
+						},
+						{
 							Type: v1alpha1.ConditionPayloadCreated,
 						},
 						{
 							Type: v1alpha1.ConditionPayloadAccepted,
+						},
+						{
+							Type: v1alpha1.ConditionPayloadMirrorFailed,
 						},
 					},
 					BlockingJobResults: []v1alpha1.JobStatus{
@@ -132,6 +138,12 @@ func TestCanonicalize(t *testing.T) {
 						},
 						{
 							Type: v1alpha1.ConditionPayloadFailed,
+						},
+						{
+							Type: v1alpha1.ConditionPayloadMirrorFailed,
+						},
+						{
+							Type: v1alpha1.ConditionPayloadMirrored,
 						},
 						{
 							Type: v1alpha1.ConditionPayloadRejected,
