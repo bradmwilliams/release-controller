@@ -2,6 +2,7 @@ package release_payload_controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -22,11 +23,11 @@ import (
 	"time"
 )
 
-func TestComputeReleaseCreationJobStatus(t *testing.T) {
+func TestComputeReleaseMirrorJobStatus(t *testing.T) {
 	testCases := []struct {
 		name     string
 		job      *batchv1.Job
-		expected v1alpha1.ReleaseCreationJobStatus
+		expected v1alpha1.ReleaseMirrorJobStatus
 	}{
 		{
 			name: "JobStatusCompletionTimeSet",
@@ -41,7 +42,7 @@ func TestComputeReleaseCreationJobStatus(t *testing.T) {
 					},
 				},
 			},
-			expected: v1alpha1.ReleaseCreationJobSuccess,
+			expected: v1alpha1.ReleaseMirrorJobSuccess,
 		},
 		{
 			name: "JobStatusConditionsNotSet",
@@ -54,7 +55,7 @@ func TestComputeReleaseCreationJobStatus(t *testing.T) {
 					Conditions: []batchv1.JobCondition{},
 				},
 			},
-			expected: v1alpha1.ReleaseCreationJobUnknown,
+			expected: v1alpha1.ReleaseMirrorJobUnknown,
 		},
 		{
 			name: "JobStatusConditionsSuspendedSet",
@@ -72,7 +73,7 @@ func TestComputeReleaseCreationJobStatus(t *testing.T) {
 					},
 				},
 			},
-			expected: v1alpha1.ReleaseCreationJobUnknown,
+			expected: v1alpha1.ReleaseMirrorJobUnknown,
 		},
 		{
 			name: "JobStatusConditionsFailedSet",
@@ -90,21 +91,21 @@ func TestComputeReleaseCreationJobStatus(t *testing.T) {
 					},
 				},
 			},
-			expected: v1alpha1.ReleaseCreationJobFailed,
+			expected: v1alpha1.ReleaseMirrorJobFailed,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			releaseCreationJobStatus := computeReleaseCreationJobStatus(testCase.job)
+			releaseMirrorJobStatus := computeReleaseMirrorJobStatus(testCase.job)
 
-			if !cmp.Equal(releaseCreationJobStatus, testCase.expected) {
-				t.Errorf("%s: Expected %v, got %v", testCase.name, testCase.expected, releaseCreationJobStatus)
+			if !cmp.Equal(releaseMirrorJobStatus, testCase.expected) {
+				t.Errorf("%s: Expected %v, got %v", testCase.name, testCase.expected, releaseMirrorJobStatus)
 			}
 		})
 	}
 }
 
-func TestReleaseCreationStatusSync(t *testing.T) {
+func TestReleaseMirrorStatusSync(t *testing.T) {
 	testCases := []struct {
 		name        string
 		job         runtime.Object
@@ -127,7 +128,7 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 			},
-			expectedErr: ErrCreationCoordinatesNotSet,
+			expectedErr: ErrMirrorCoordinatesNotSet,
 		},
 		{
 			name: "ReleasePayloadStatusSetWithNoJob",
@@ -138,12 +139,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status: v1alpha1.ReleaseCreationJobUnknown,
+						Status: v1alpha1.ReleaseMirrorJobUnknown,
 					},
 				},
 			},
@@ -153,13 +154,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobUnknown,
-						Message: ReleaseCreationJobUnknownMessage,
+						Status:  v1alpha1.ReleaseMirrorJobUnknown,
+						Message: ReleaseMirrorJobUnknownMessage,
 					},
 				},
 			},
@@ -183,12 +184,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status: v1alpha1.ReleaseCreationJobUnknown,
+						Status: v1alpha1.ReleaseMirrorJobUnknown,
 					},
 				},
 			},
@@ -198,13 +199,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobSuccess,
-						Message: ReleaseCreationJobSuccessMessage,
+						Status:  v1alpha1.ReleaseMirrorJobSuccess,
+						Message: ReleaseMirrorJobSuccessMessage,
 					},
 				},
 			},
@@ -231,12 +232,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status: v1alpha1.ReleaseCreationJobUnknown,
+						Status: v1alpha1.ReleaseMirrorJobUnknown,
 					},
 				},
 			},
@@ -246,13 +247,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobFailed,
-						Message: ReleaseCreationJobFailureMessage,
+						Status:  v1alpha1.ReleaseMirrorJobFailed,
+						Message: ReleaseMirrorJobFailureMessage,
 					},
 				},
 			},
@@ -281,12 +282,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status: v1alpha1.ReleaseCreationJobUnknown,
+						Status: v1alpha1.ReleaseMirrorJobUnknown,
 					},
 				},
 			},
@@ -296,12 +297,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobFailed,
+						Status:  v1alpha1.ReleaseMirrorJobFailed,
 						Message: "BackoffLimitExceeded: Job has reached the specified backoff limit",
 					},
 				},
@@ -328,12 +329,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status: v1alpha1.ReleaseCreationJobUnknown,
+						Status: v1alpha1.ReleaseMirrorJobUnknown,
 					},
 				},
 			},
@@ -343,13 +344,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobUnknown,
-						Message: ReleaseCreationJobUnknownMessage,
+						Status:  v1alpha1.ReleaseMirrorJobUnknown,
+						Message: ReleaseMirrorJobUnknownMessage,
 					},
 				},
 			},
@@ -373,8 +374,8 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
@@ -387,13 +388,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobSuccess,
-						Message: ReleaseCreationJobSuccessMessage,
+						Status:  v1alpha1.ReleaseMirrorJobSuccess,
+						Message: ReleaseMirrorJobSuccessMessage,
 					},
 				},
 			},
@@ -407,8 +408,8 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
@@ -421,13 +422,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 					Namespace: "ocp",
 				},
 				Status: v1alpha1.ReleasePayloadStatus{
-					ReleaseCreationJobResult: v1alpha1.ReleaseCreationJobResult{
-						Coordinates: v1alpha1.ReleaseCreationJobCoordinates{
+					ReleaseMirrorJobResult: v1alpha1.ReleaseMirrorJobResult{
+						Coordinates: v1alpha1.ReleaseMirrorJobCoordinates{
 							Name:      "4.11.0-0.nightly-2022-02-09-091559",
 							Namespace: "ci-release",
 						},
-						Status:  v1alpha1.ReleaseCreationJobUnknown,
-						Message: ReleaseCreationJobUnknownMessage,
+						Status:  v1alpha1.ReleaseMirrorJobUnknown,
+						Message: ReleaseMirrorJobUnknownMessage,
 					},
 				},
 			},
@@ -444,12 +445,12 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 			releasePayloadInformerFactory := releasepayloadinformers.NewSharedInformerFactory(releasePayloadClient, controllerDefaultResyncDuration)
 			releasePayloadInformer := releasePayloadInformerFactory.Release().V1alpha1().ReleasePayloads()
 
-			c := &ReleaseCreationStatusController{
-				ReleasePayloadController: NewReleasePayloadController("Release Creation Status Controller",
+			c := &ReleaseMirrorJobStatusController{
+				ReleasePayloadController: NewReleasePayloadController("Release Mirror Job Status Controller",
 					releasePayloadInformer,
 					releasePayloadClient.ReleaseV1alpha1(),
-					events.NewInMemoryRecorder("release-creation-status-controller-test"),
-					workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{Name: "ReleaseCreationStatusController"})),
+					events.NewInMemoryRecorder("release-mirror-job-status-controller-test"),
+					workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{Name: "ReleaseMirrorJobStatusController"})),
 				batchJobLister: batchJobInformer.Lister(),
 			}
 			c.cachesToSync = append(c.cachesToSync, batchJobInformer.Informer().HasSynced)
@@ -472,15 +473,15 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 				},
 			})
 
-			// In case someone/something deletes the ReleaseCreationJobResult.Status, try and rectify it...
+			// In case someone/something deletes the ReleaseMirrorJobResult.Status, try and rectify it...
 			releasePayloadFilter := func(obj interface{}) bool {
 				if releasePayload, ok := obj.(*v1alpha1.ReleasePayload); ok {
 					switch {
 					// Check that we have the necessary information to proceed
-					case len(releasePayload.Status.ReleaseCreationJobResult.Coordinates.Namespace) == 0 || len(releasePayload.Status.ReleaseCreationJobResult.Coordinates.Name) == 0:
+					case len(releasePayload.Status.ReleaseMirrorJobResult.Coordinates.Namespace) == 0 || len(releasePayload.Status.ReleaseMirrorJobResult.Coordinates.Name) == 0:
 						return false
 					// Check if we need to process this ReleasePayload at all
-					case len(releasePayload.Status.ReleaseCreationJobResult.Status) == 0 || len(releasePayload.Status.ReleaseCreationJobResult.Message) == 0:
+					case len(releasePayload.Status.ReleaseMirrorJobResult.Status) == 0 || len(releasePayload.Status.ReleaseMirrorJobResult.Message) == 0:
 						return true
 					}
 				}
@@ -499,13 +500,13 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 			releasePayloadInformerFactory.Start(context.Background().Done())
 			kubeFactory.Start(context.Background().Done())
 
-			if !cache.WaitForNamedCacheSync("ReleaseCreationStatusController", context.Background().Done(), c.cachesToSync...) {
+			if !cache.WaitForNamedCacheSync("ReleaseMirrorJobStatusController", context.Background().Done(), c.cachesToSync...) {
 				t.Errorf("%s: error waiting for caches to sync", testCase.name)
 				return
 			}
 
 			err := c.sync(context.TODO(), fmt.Sprintf("%s/%s", testCase.input.Namespace, testCase.input.Name))
-			if err != nil && err != testCase.expectedErr {
+			if err != nil && !errors.Is(err, testCase.expectedErr) {
 				t.Errorf("%s - expected error: %v, got: %v", testCase.name, testCase.expectedErr, err)
 			}
 
@@ -518,7 +519,7 @@ func TestReleaseCreationStatusSync(t *testing.T) {
 	}
 }
 
-func TestComputeReleaseCreationJobMessage(t *testing.T) {
+func TestComputeReleaseMirrorJobMessage(t *testing.T) {
 	var value int32 = 1
 	testCases := []struct {
 		name     string
@@ -538,7 +539,7 @@ func TestComputeReleaseCreationJobMessage(t *testing.T) {
 					},
 				},
 			},
-			expected: ReleaseCreationJobSuccessMessage,
+			expected: ReleaseMirrorJobSuccessMessage,
 		},
 		{
 			name: "JobStatusConditionsNotSet",
@@ -551,7 +552,7 @@ func TestComputeReleaseCreationJobMessage(t *testing.T) {
 					Conditions: []batchv1.JobCondition{},
 				},
 			},
-			expected: ReleaseCreationJobUnknownMessage,
+			expected: ReleaseMirrorJobUnknownMessage,
 		},
 		{
 			name: "JobStatusConditionsFailedSet",
@@ -584,7 +585,7 @@ func TestComputeReleaseCreationJobMessage(t *testing.T) {
 					Ready: &value,
 				},
 			},
-			expected: ReleaseCreationJobPendingMessage,
+			expected: ReleaseMirrorJobPendingMessage,
 		},
 		{
 			name: "JobStatusActive",
@@ -597,15 +598,15 @@ func TestComputeReleaseCreationJobMessage(t *testing.T) {
 					Active: 1,
 				},
 			},
-			expected: ReleaseCreationJobPendingMessage,
+			expected: ReleaseMirrorJobPendingMessage,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			releaseCreationJobMessage := computeReleaseCreationJobMessage(testCase.job)
+			releaseMirrorJobMessage := computeReleaseMirrorJobMessage(testCase.job)
 
-			if !cmp.Equal(releaseCreationJobMessage, testCase.expected) {
-				t.Errorf("%s: Expected %v, got %v", testCase.name, testCase.expected, releaseCreationJobMessage)
+			if !cmp.Equal(releaseMirrorJobMessage, testCase.expected) {
+				t.Errorf("%s: Expected %v, got %v", testCase.name, testCase.expected, releaseMirrorJobMessage)
 			}
 		})
 	}
