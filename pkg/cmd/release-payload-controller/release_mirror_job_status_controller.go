@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/openshift/release-controller/pkg/releasepayload"
 	"reflect"
 	"strings"
 
@@ -181,6 +182,9 @@ func (c *ReleaseMirrorJobStatusController) sync(ctx context.Context, key string)
 	}
 
 	if len(originalReleasePayload.Status.ReleaseMirrorJobResult.Coordinates.Namespace) == 0 || len(originalReleasePayload.Status.ReleaseMirrorJobResult.Coordinates.Name) == 0 {
+		if releasepayload.IsReleasePayloadComplete(originalReleasePayload) {
+			return nil
+		}
 		return ErrMirrorCoordinatesNotSet
 	}
 

@@ -3,6 +3,7 @@ package releasepayload
 import (
 	"github.com/openshift/release-controller/pkg/apis/release/v1alpha1"
 	releasecontroller "github.com/openshift/release-controller/pkg/release-controller"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GenerateVerificationStatusMap(payload *v1alpha1.ReleasePayload, status *releasecontroller.VerificationStatusMap) bool {
@@ -92,4 +93,16 @@ func getVerificationStatusUrl(jobRunResults []v1alpha1.JobRunResult) string {
 		return jobRunResults[len(jobRunResults)-1].HumanProwResultsURL
 	}
 	return ""
+}
+
+// IsReleasePayloadComplete returns whether the ReleasePayload has been accepted, rejected, or failed
+func IsReleasePayloadComplete(payload *v1alpha1.ReleasePayload) bool {
+	for _, condition := range payload.Status.Conditions {
+		if condition.Type == v1alpha1.ConditionPayloadAccepted || condition.Type == v1alpha1.ConditionPayloadRejected || condition.Type == v1alpha1.ConditionPayloadFailed {
+			if condition.Status == v1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -1,6 +1,7 @@
 package releasepayload
 
 import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	"github.com/openshift/release-controller/pkg/apis/release/v1alpha1"
@@ -261,6 +262,84 @@ func Test_getVerificationStatusUrl(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getVerificationStatusUrl(tt.results)
+			if tt.want != got {
+				t.Errorf("%s: Expected %v, got %v", tt.name, tt.want, got)
+			}
+		})
+	}
+}
+
+func Test_IsReleasePayloadComplete(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload *v1alpha1.ReleasePayload
+		want    bool
+	}{
+		{
+			name:    "Default Payload",
+			payload: &v1alpha1.ReleasePayload{},
+			want:    false,
+		},
+		{
+			name: "Payload Accepted",
+			payload: &v1alpha1.ReleasePayload{
+				Status: v1alpha1.ReleasePayloadStatus{
+					Conditions: []v1.Condition{
+						{
+							Type:   v1alpha1.ConditionPayloadAccepted,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Payload Rejected",
+			payload: &v1alpha1.ReleasePayload{
+				Status: v1alpha1.ReleasePayloadStatus{
+					Conditions: []v1.Condition{
+						{
+							Type:   v1alpha1.ConditionPayloadRejected,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Payload Failed",
+			payload: &v1alpha1.ReleasePayload{
+				Status: v1alpha1.ReleasePayloadStatus{
+					Conditions: []v1.Condition{
+						{
+							Type:   v1alpha1.ConditionPayloadFailed,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Payload Created",
+			payload: &v1alpha1.ReleasePayload{
+				Status: v1alpha1.ReleasePayloadStatus{
+					Conditions: []v1.Condition{
+						{
+							Type:   v1alpha1.ConditionPayloadCreated,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsReleasePayloadComplete(tt.payload)
 			if tt.want != got {
 				t.Errorf("%s: Expected %v, got %v", tt.name, tt.want, got)
 			}

@@ -17,6 +17,7 @@ import (
 	releasepayloadinformer "github.com/openshift/release-controller/pkg/client/informers/externalversions/release/v1alpha1"
 	"github.com/openshift/release-controller/pkg/prow"
 	releasecontroller "github.com/openshift/release-controller/pkg/release-controller"
+	"github.com/openshift/release-controller/pkg/releasepayload"
 	releasepayloadhelpers "github.com/openshift/release-controller/pkg/releasepayload/v1alpha1helpers"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -107,7 +108,9 @@ func (c *LegacyJobStatusController) sync(ctx context.Context, key string) error 
 	if originalReleasePayload.Spec.PayloadVerificationConfig.PayloadVerificationDataSource != v1alpha1.PayloadVerificationDataSourceImageStream {
 		return nil
 	}
-
+	if releasepayload.IsReleasePayloadCompleted(originalReleasePayload) {
+		return nil
+	}
 	// Grab the verification results from the payload's imagestream...
 	imageStream, err := c.imageStreamLister.ImageStreams(originalReleasePayload.Spec.PayloadCoordinates.Namespace).Get(originalReleasePayload.Spec.PayloadCoordinates.ImagestreamName)
 	if err != nil {
