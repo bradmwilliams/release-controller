@@ -3,8 +3,6 @@ package utils
 import (
 	"reflect"
 	"testing"
-
-	"github.com/blang/semver"
 )
 
 func TestParseReleaseVerificationJobName(t *testing.T) {
@@ -22,7 +20,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "ci",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -39,7 +37,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "ci",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -56,7 +54,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -73,7 +71,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -90,7 +88,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "okd",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -107,7 +105,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "okd",
 					Timestamp:           "2022-06-03-013657",
 					CIConfigurationName: "aws-serial",
@@ -117,6 +115,90 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:        "OKD-SCOSJob",
+			prowjobName: "4.20.0-0.okd-scos-2025-06-19-225747-aws",
+			want: &ReleaseVerificationJobDetails{
+				X: 4,
+				Y: 20,
+				Z: 0,
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "0",
+					Stream:              "okd-scos",
+					Timestamp:           "2025-06-19-225747",
+					CIConfigurationName: "aws",
+					Count:               "",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "OKD-SCOSJobWithRetries",
+			prowjobName: "4.20.0-0.okd-scos-2025-06-19-225747-aws-2",
+			want: &ReleaseVerificationJobDetails{
+				X: 4,
+				Y: 20,
+				Z: 0,
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "0",
+					Stream:              "okd-scos",
+					Timestamp:           "2025-06-19-225747",
+					CIConfigurationName: "aws",
+					Count:               "2",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "OKD-SCOSReleaseJob",
+			prowjobName: "4.19.0-okd-scos.5-upgrade",
+			want: &ReleaseVerificationJobDetails{
+				X: 4,
+				Y: 19,
+				Z: 0,
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "5",
+					Stream:              "okd-scos",
+					Timestamp:           "",
+					CIConfigurationName: "upgrade",
+					Count:               "",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "OKD-SCOSReleaseJobWithRetries",
+			prowjobName: "4.19.0-okd-scos.5-upgrade-minor-1",
+			want: &ReleaseVerificationJobDetails{
+				X: 4,
+				Y: 19,
+				Z: 0,
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "5",
+					Stream:              "okd-scos",
+					Timestamp:           "",
+					CIConfigurationName: "upgrade-minor",
+					Count:               "1",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "OKD-SCOS-ECReleaseJob",
+			prowjobName: "4.20.0-okd-scos.ec.4-upgrade-minor",
+			want: &ReleaseVerificationJobDetails{
+				X: 4,
+				Y: 20,
+				Z: 0,
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "ec.4",
+					Stream:              "okd-scos",
+					Timestamp:           "",
+					CIConfigurationName: "upgrade-minor",
+					Count:               "",
+				},
+			},
+			wantErr: false,
+		}, {
 			name:        "ReleaseCandidateJob",
 			prowjobName: "4.11.0-rc.0-aws-serial",
 			want: &ReleaseVerificationJobDetails{
@@ -124,7 +206,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.0",
+					PreRelease:          "rc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -141,7 +223,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.0",
+					PreRelease:          "rc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -158,7 +240,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "fc.0",
+					PreRelease:          "fc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -175,7 +257,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "fc.0",
+					PreRelease:          "fc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -192,7 +274,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "ec.1",
+					PreRelease:          "ec.1",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-sdn-serial",
@@ -209,7 +291,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "ec.1",
+					PreRelease:          "ec.1",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws-sdn-serial",
@@ -226,7 +308,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 10,
 				Z: 17,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -243,7 +325,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 10,
 				Z: 17,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws-serial",
@@ -260,7 +342,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 10,
 				Z: 41,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws-sdn-upgrade-4.10-micro",
@@ -277,7 +359,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 10,
 				Z: 41,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws-sdn-upgrade-4.10-micro",
@@ -295,12 +377,13 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 11,
 				Z: 14,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
 					Count:               "",
 					UpgradeFrom:         "4.11.13",
+					UpgradePlatform:     "aws",
 				},
 			},
 			wantErr: false,
@@ -328,7 +411,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.0",
+					PreRelease:          "rc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -346,7 +429,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.0",
+					PreRelease:          "rc.0",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -364,7 +447,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.7",
+					PreRelease:          "rc.7",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -382,7 +465,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.7",
+					PreRelease:          "rc.7",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -400,7 +483,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.7",
+					PreRelease:          "rc.7",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -418,7 +501,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "rc.7",
+					PreRelease:          "rc.7",
 					Stream:              "Candidate",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -436,7 +519,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 6,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -454,7 +537,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 6,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -472,7 +555,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 6,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -490,7 +573,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 12,
 				Z: 6,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "",
+					PreRelease:          "",
 					Stream:              "Stable",
 					Timestamp:           "",
 					CIConfigurationName: "aws",
@@ -508,7 +591,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-11-11-162833",
 					CIConfigurationName: "multi-aws-ovn-upgrade",
@@ -526,7 +609,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-11-11-162833",
 					CIConfigurationName: "multi-aws-ovn-upgrade",
@@ -544,7 +627,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-11-11-162833",
 					CIConfigurationName: "multi-aws-ovn-5w4rkb2",
@@ -562,7 +645,7 @@ func TestParseReleaseVerificationJobName(t *testing.T) {
 				Y: 13,
 				Z: 0,
 				PreReleaseDetails: &PreReleaseDetails{
-					Build:               "0",
+					PreRelease:          "0",
 					Stream:              "nightly",
 					Timestamp:           "2022-11-11-162833",
 					CIConfigurationName: "multi-aws-ovn-5w4rkb2",
@@ -848,223 +931,6 @@ func Test_parse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := parse(tt.line); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parse() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_parsePreRelease(t *testing.T) {
-	tests := []struct {
-		name       string
-		prerelease []semver.PRVersion
-		want       *PreReleaseDetails
-		wantErr    bool
-	}{
-		{
-			name: "PreRelease",
-			prerelease: []semver.PRVersion{
-				{
-					VersionNum: 0,
-					IsNum:      true,
-				},
-				{
-					VersionStr: "nightly-2022-06-03-121459-aws-single-node-serial",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Build:               "0",
-				Stream:              "nightly",
-				Timestamp:           "2022-06-03-121459",
-				CIConfigurationName: "aws-single-node-serial",
-			},
-			wantErr: false,
-		},
-		{
-			name: "PreReleaseWithEmbeddedVersion",
-			prerelease: []semver.PRVersion{
-				{
-					VersionNum: 0,
-					IsNum:      true,
-				},
-				{
-					VersionStr: "ci-2022-06-03-002248-azure-sdn-upgrade-4",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "10-minor-1",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Build:               "0",
-				Stream:              "ci",
-				Timestamp:           "2022-06-03-002248",
-				CIConfigurationName: "azure-sdn-upgrade-4.10-minor",
-				Count:               "1",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Candidate",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "fc",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "metal-ipi-ovn-ipv6-2",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Build:               "fc",
-				Stream:              "Candidate",
-				CIConfigurationName: "metal-ipi-ovn-ipv6",
-				Count:               "2",
-			},
-			wantErr: false,
-		},
-		{
-			name: "CandidateAutomaticUpgrade",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "fc",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "5-upgrade-from-4",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "",
-					VersionNum: 11,
-					IsNum:      true,
-				},
-				{
-					VersionStr: "10-gcp",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Build:               "fc.5",
-				Stream:              "Candidate",
-				CIConfigurationName: "gcp",
-				UpgradeFrom:         "4.11.10",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Stable",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "aws-serial",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Stream:              "Stable",
-				CIConfigurationName: "aws-serial",
-			},
-			wantErr: false,
-		},
-		{
-			name: "StableAutomaticUpgrade",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "upgrade-from-4",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "",
-					VersionNum: 11,
-					IsNum:      true,
-				},
-				{
-					VersionStr: "10-gcp",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Stream:              "Stable",
-				CIConfigurationName: "gcp",
-				UpgradeFrom:         "4.11.10",
-			},
-			wantErr: false,
-		},
-		{
-			name: "InvalidStableAutomaticUpgrade",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "upgrade-from-previous-minor",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Stream:              "Stable",
-				CIConfigurationName: "upgrade-from-previous-minor",
-			},
-			wantErr: false,
-		},
-		{
-			name: "CandidateAutomaticUpgradeFromCandidate",
-			prerelease: []semver.PRVersion{
-				{
-					VersionStr: "fc",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "7-upgrade-from-4",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "",
-					VersionNum: 12,
-					IsNum:      true,
-				},
-				{
-					VersionStr: "0-rc",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-				{
-					VersionStr: "6-aws",
-					VersionNum: 0,
-					IsNum:      false,
-				},
-			},
-			want: &PreReleaseDetails{
-				Build:               "fc.7",
-				Stream:              "Candidate",
-				CIConfigurationName: "aws",
-				UpgradeFrom:         "4.12.0-rc.6",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parsePreRelease(tt.prerelease)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parsePreRelease() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parsePreRelease() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
