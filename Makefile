@@ -54,3 +54,9 @@ vendor:
 	go mod tidy
 	go mod vendor
 .PHONY: vendor
+
+# Override the vulncheck target from build-machinery-go to use our wrapper
+# that supports ignoring vulnerabilities with no available fix
+vulncheck:
+	./hack/govulncheck-wrapper.sh
+.PHONY: vulncheck
