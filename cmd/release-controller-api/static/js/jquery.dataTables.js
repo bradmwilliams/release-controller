@@ -64,7 +64,13 @@
 	{
 		// When creating with `new`, create a new DataTable, returning the API instance
 		if (this instanceof DataTable) {
-			return $(selector).DataTable(options);
+			// Use jQuery.find() which only accepts CSS selectors, not HTML
+			if (typeof selector === 'string') {
+				return jQuery(document).find(selector).DataTable(options);
+			}
+			// Non-string input: DOM element or jQuery object - safe to wrap
+			var safeTarget = selector.jquery ? selector : jQuery.fn.init.call(jQuery(), selector);
+			return safeTarget.DataTable(options);
 		}
 		else {
 			// Argument switching

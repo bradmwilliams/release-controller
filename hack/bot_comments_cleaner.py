@@ -1,8 +1,12 @@
 import argparse
+import re
+from urllib.parse import quote
 import requests
 
 BOT_USERNAME = 'openshift-crt-jira-release-controller'
 JIRA_URL = 'https://issues.redhat.com/'
+ISSUE_KEY_PATTERN = re.compile(r'^[A-Z][A-Z0-9_]+-\d+$')
+COMMENT_ID_PATTERN = re.compile(r'^\d+$')
 
 def main():
     parser = argparse.ArgumentParser(description="JIRA Issue Comment Management CLI Tool")
@@ -49,7 +53,11 @@ def main():
                 comment_count = sum(1 for comment in comments if TARGET_COMMENT in comment.get('body', ''))
 
                 if comment_count > 1:
-                    issue_comment_counts[issue['key']] = comment_count
+                    key = issue['key']
+                    if not ISSUE_KEY_PATTERN.match(key):
+                        print(f"Skipping issue with invalid key format: {key}")
+                        continue
+                    issue_comment_counts[key] = comment_count
 
             print("Issues with the target comment appearing more than once:")
             for issue_key, comment_count in issue_comment_counts.items():
@@ -66,7 +74,10 @@ def main():
             break
 
 def delete_comments(issue_key, headers, SUB_TARGET_COMMENT):
-    issue_url = f'{JIRA_URL}/rest/api/2/issue/{issue_key}?fields=comment'
+    if not ISSUE_KEY_PATTERN.match(issue_key):
+        print(f"Skipping issue with invalid key format: {issue_key}")
+        return
+    issue_url = f'{JIRA_URL}/rest/api/2/issue/{quote(issue_key, safe="")}?fields=comment'
     response = requests.get(issue_url, headers=headers)
 
     if response.status_code == 200:
@@ -79,7 +90,10 @@ def delete_comments(issue_key, headers, SUB_TARGET_COMMENT):
 
         for matching_comments in matching_401_comments:
             comment_id = matching_comments.get('id')
-            comment_delete_url = f'{JIRA_URL}/rest/api/2/issue/{issue_key}/comment/{comment_id}'
+            if not comment_id or not COMMENT_ID_PATTERN.match(str(comment_id)):
+                print(f"Skipping comment with invalid ID format: {comment_id}")
+                continue
+            comment_delete_url = f'{JIRA_URL}/rest/api/2/issue/{quote(issue_key, safe="")}/comment/{quote(str(comment_id), safe="")}'
             response = requests.delete(comment_delete_url, headers=headers)
             if response.status_code == 204:
                 print(f"Deleted comment {comment_id} from issue {issue_key}")

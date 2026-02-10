@@ -10,6 +10,7 @@
 
 .dccache
 python-env
+__pycache__/
 
 .scannerwork/
 coverage.out
