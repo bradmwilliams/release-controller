@@ -1058,7 +1058,7 @@ func (r *ExecReleaseInfo) GetRemoteLinksWithConcurrency(issues []string, request
 			links, err = r.jiraClient.GetRemoteLinks(issue)
 			if err != nil {
 				mu.Lock()
-				errorBuilder.WriteString(fmt.Sprintf("search failed for issue %s: %v\n", issue, err))
+				fmt.Fprintf(&errorBuilder, "search failed for issue %s: %v\n", issue, err)
 				mu.Unlock()
 				return
 			}
