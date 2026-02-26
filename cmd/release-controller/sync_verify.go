@@ -220,7 +220,7 @@ func (c *Controller) resolveUpgradeRelease(upgradeRelease *releasecontroller.Upg
 	} else if upgradeRelease.Candidate != nil {
 		// create blank semver.Range
 		var constraint semver.Range
-		stream := fmt.Sprintf("%s.0-0.%s%s", upgradeRelease.Candidate.Version, upgradeRelease.Candidate.Stream, strings.TrimPrefix(release.Config.To, "release"))
+		stream := fmt.Sprintf("%s.0-0.%s%s", upgradeRelease.Candidate.Version, upgradeRelease.Candidate.Stream, TrimPrefixes(release.Config.To, "release-5", "release"))
 		r, latest, err := releasecontroller.LatestForStream(c.parsedReleaseConfigCache, c.eventRecorder, c.releaseLister, stream, constraint, upgradeRelease.Candidate.Relative, "")
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get latest tag for stream %s: %w", stream, err)
@@ -238,4 +238,13 @@ func (c *Controller) resolveUpgradeRelease(upgradeRelease *releasecontroller.Upg
 		return pullspec, version, nil
 	}
 	return "", "", fmt.Errorf("upgradeRelease fields must be set if upgradeRelease is set")
+}
+
+func TrimPrefixes(s string, prefixes ...string) string {
+  for _, prefix := range prefixes {
+	  if after, found := strings.CutPrefix(s, prefix); found {
+		  return after
+	  }
+  }
+  return s
 }
