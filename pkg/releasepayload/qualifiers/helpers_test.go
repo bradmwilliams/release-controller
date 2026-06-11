@@ -660,7 +660,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -733,7 +732,7 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 			},
 		},
 		{
-			name: "MultipleJobTypes_BlockingAndUpgradeJobs",
+			name: "UpgradeJobs_ExcludedFromQualifierSummary",
 			configAccessor: &mockConfigAccessor{
 				config: createBaseConfig(),
 			},
@@ -797,7 +796,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 						Jobs: []v1alpha1.ReleaseQualifierJobReference{
 							{CIConfigurationName: "fips-blocking", CIConfigurationJobName: "periodic-ci-openshift-release-master-blocking-fips"},
 							{CIConfigurationName: "fips-informing", CIConfigurationJobName: "periodic-ci-openshift-release-master-informing-fips"},
-							{CIConfigurationName: "fips-upgrade", CIConfigurationJobName: "periodic-ci-openshift-release-master-upgrade-fips"},
 						},
 						AggregateState:  v1alpha1.JobStateSuccess,
 						BadgeName:       "FIPS",
@@ -831,7 +829,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -869,7 +866,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -902,7 +898,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -943,7 +938,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -976,7 +970,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -1009,7 +1002,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -1364,7 +1356,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
@@ -1415,7 +1406,6 @@ func TestGenerateQualifiersSummary(t *testing.T) {
 					PayloadVerificationConfig: v1alpha1.PayloadVerificationConfig{
 						BlockingJobs:  []v1alpha1.CIConfiguration{},
 						InformingJobs: []v1alpha1.CIConfiguration{},
-						UpgradeJobs:   []v1alpha1.CIConfiguration{},
 					},
 				},
 				Status: v1alpha1.ReleasePayloadStatus{},
