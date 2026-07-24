@@ -1436,6 +1436,7 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 				fmt.Fprintf(w, `<pre class="small">%s</pre>`, template.HTMLEscapeString(msg))
 			}
 		}
+		// TODO: Remove once all historical releases with this annotation have aged out.
 		if log := tagInfo.Info.Tag.Annotations[releasecontroller.ReleaseAnnotationLog]; len(log) > 0 {
 			fmt.Fprintf(w, `<pre class="small">%s</pre>`, template.HTMLEscapeString(log))
 		} else {
