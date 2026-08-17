@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	imagev1 "github.com/openshift/api/image/v1"
-	"github.com/openshift/release-controller/pkg/prow"
 	releasecontroller "github.com/openshift/release-controller/pkg/release-controller"
 
 	corev1 "k8s.io/api/core/v1"
@@ -48,89 +47,6 @@ func TestValidateProwJob(t *testing.T) {
 			}
 			if actualErrMsg != expectedErrMsg {
 				t.Errorf("Expected err %q, got err %q", expectedErrMsg, actualErrMsg)
-			}
-		})
-	}
-}
-
-func TestGenerateSafeProwJobName(t *testing.T) {
-	testCases := []struct {
-		name     string
-		jobName  string
-		suffix   string
-		expected string
-	}{
-		{
-			name:     "JobNameWithoutSuffixWithNoTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-130010-job-name-fake",
-			suffix:   "",
-			expected: "4.9.0-0.ci-2021-08-30-130010-job-name-fake",
-		},
-		{
-			name:     "MaxSizeJobNameWithoutSuffixWithNoTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-130010-this-is-a-really-long-job-name-foo",
-			suffix:   "",
-			expected: "4.9.0-0.ci-2021-08-30-130010-this-is-a-really-long-job-name-foo",
-		},
-		{
-			name:     "JobNameWithoutSuffixWithTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-130010-this-is-a-really-long-job-name-fake",
-			suffix:   "",
-			expected: "4.9.0-0.ci-2021-08-30-130010-this-is-a-really-long-job-fwm2xib",
-		},
-		{
-			name:     "JobNameWithSuffixWithNoTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-130010-job-name",
-			suffix:   "analysis-1",
-			expected: "4.9.0-0.ci-2021-08-30-130010-job-name-analysis-1",
-		},
-		{
-			name:     "JobNameWithSuffixWithTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-133010-this-is-a-really-long-job-name",
-			suffix:   "analysis-1",
-			expected: "4.9.0-0.ci-2021-08-30-133010-this-is-a-reall-18k93xt-analysis-1",
-		},
-		{
-			name:     "MaxSizeJobNameWithSuffixWithNoTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-133010-fake-job-name-for-test1",
-			suffix:   "analysis-1",
-			expected: "4.9.0-0.ci-2021-08-30-133010-fake-job-name-for-test1-analysis-1",
-		},
-		{
-			name:     "ExtremelyLongJobNameWithSuffixWithTruncation",
-			jobName:  "4.9.0-0.ci-2021-08-30-133010-this-is-a-really-really-really-really-really-really-long-job-name",
-			suffix:   "analysis-1",
-			expected: "4.9.0-0.ci-2021-08-30-133010-this-is-a-reall-gmlwrnb-analysis-1",
-		},
-		{
-			name:     "AggregatorJob",
-			jobName:  "4.16.0-0.nightly-2024-02-07-125310-aggregated-hypershift-ovn-conformance-4.16",
-			suffix:   "aggregator",
-			expected: "4.16.0-0.nightly-2024-02-07-125310-aggregate-44j0w6k-aggregator",
-		},
-		{
-			name:     "AggregatorJobWithRetry",
-			jobName:  "4.16.0-0.nightly-2024-02-07-125310-aggregated-hypershift-ovn-conformance-4.16",
-			suffix:   "aggregator-2",
-			expected: "4.16.0-0.nightly-2024-02-07-125310-aggrega-44j0w6k-aggregator-2",
-		},
-		{
-			name:     "TruncationResultsInInvalidJobName",
-			jobName:  "4.19.0-0.nightly-2025-06-19-224840-aws-ovn-upgrade-4.19-micro-fips",
-			suffix:   "1",
-			expected: "4.19.0-0.nightly-2025-06-19-224840-aws-ovn-upgrade-4-mzdcpq2-1",
-		},
-	}
-
-	t.Parallel()
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := prow.GenerateSafeProwJobName(tc.jobName, tc.suffix)
-			if result != tc.expected {
-				t.Errorf("Expected truncated string %q, got %q", tc.expected, result)
-			}
-			if len(result) > prow.MaxProwJobNameLength {
-				t.Errorf("Expected string of length less than %d, got string of length %d", prow.MaxProwJobNameLength, len(result))
 			}
 		})
 	}

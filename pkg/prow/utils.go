@@ -24,7 +24,7 @@ func ProwjobSafeHash(values ...string) string {
 	}
 
 	// Object names can't be too long so we truncate
-	// the hash. This increases chances of collision
+	// the hash. This increases chances of collision,
 	// but we can tolerate it as our input space is
 	// tiny.
 	return oneWayNameEncoding.EncodeToString(hash.Sum(nil)[:4])
