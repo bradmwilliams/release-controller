@@ -15,13 +15,17 @@ const (
 )
 
 var (
-	candidates  = regexp.MustCompile(`[efr]c.\d+`)
+	candidates = regexp.MustCompile(`[efr]c.\d+`)
+	// The count group is bounded to 1-2 digits (real retries) so it can't match the
+	// 7-character hash prow.GenerateSafeProwJobName appends to truncated job names,
+	// which is occasionally all-digit by chance (e.g. "-8298822") and would otherwise
+	// be misread as a retry count instead of part of the job/CI configuration name.
 	expressions = []*regexp.Regexp{
-		regexp.MustCompile(`^(?P<prerelease>[\d-]+)\.(?P<stream>okd-scos|okd|\w+)-(?P<architecture>\w+)?-?(?P<timestamp>\d{4}-\d{2}-\d{2}-\d{6})-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d+))?$`),
-		regexp.MustCompile(`^(?P<prerelease>[efr]c\.\d+)?-?upgrade-from-(?P<upgrade_from>[\d\\.]+(?:-[efr]c.\d+)?)-?(?P<job>\w+)-?(?P<count>\d+)?$`),
-		regexp.MustCompile(`^(?P<stream>okd-scos|okd)\.(?P<prerelease>(?:[erf]c\.\d+)+|\d+)-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d+))?$`),
-		regexp.MustCompile(`^(?P<prerelease>(?:[erf]c|okd-scos|okd)\.\d+)-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d+))?$`),
-		regexp.MustCompile(`^(?P<job>[\w-\\.]+?)(?:-(?P<count>\d+))?$`),
+		regexp.MustCompile(`^(?P<prerelease>[\d-]+)\.(?P<stream>okd-scos|okd|\w+)-(?P<architecture>\w+)?-?(?P<timestamp>\d{4}-\d{2}-\d{2}-\d{6})-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d{1,2}))?$`),
+		regexp.MustCompile(`^(?P<prerelease>[efr]c\.\d+)?-?upgrade-from-(?P<upgrade_from>[\d\\.]+(?:-[efr]c.\d+)?)-?(?P<job>\w+)-?(?P<count>\d{1,2})?$`),
+		regexp.MustCompile(`^(?P<stream>okd-scos|okd)\.(?P<prerelease>(?:[erf]c\.\d+)+|\d+)-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d{1,2}))?$`),
+		regexp.MustCompile(`^(?P<prerelease>(?:[erf]c|okd-scos|okd)\.\d+)-(?P<job>[\w-\\.]+?)(?:-(?P<count>\d{1,2}))?$`),
+		regexp.MustCompile(`^(?P<job>[\w-\\.]+?)(?:-(?P<count>\d{1,2}))?$`),
 	}
 )
 

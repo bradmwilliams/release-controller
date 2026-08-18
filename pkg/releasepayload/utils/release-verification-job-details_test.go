@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"github.com/blang/semver"
 	"reflect"
 	"testing"
+
+	"github.com/blang/semver"
 )
 
 func TestNewReleaseVerificationJobName(t *testing.T) {
@@ -1324,6 +1325,104 @@ func TestNewReleaseVerificationJobName(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:        "NightlyJobTruncatedToNumeric",
+			prowjobName: "4.19.0-0.nightly-2026-08-14-112411-hypershift-aks-confo-8298822",
+			want: &ReleaseVerificationJobDetails{
+				Name: "4.19.0-0.nightly-2026-08-14-112411-hypershift-aks-confo-8298822",
+				Version: semver.Version{
+					Major: 4,
+					Minor: 19,
+					Patch: 0,
+					Pre: []semver.PRVersion{
+						{
+							VersionStr: "",
+							VersionNum: 0,
+							IsNum:      true,
+						},
+						{
+							VersionStr: "nightly-2026-08-14-112411-hypershift-aks-confo-8298822",
+							VersionNum: 0,
+							IsNum:      false,
+						},
+					},
+				},
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "0",
+					Stream:              "nightly",
+					Timestamp:           "2026-08-14-112411",
+					CIConfigurationName: "hypershift-aks-confo-8298822",
+					Count:               "",
+					Architecture:        "",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			// A legitimate double-digit retry count must still be recognized as a count,
+			// confirming the \d{1,2} bound didn't just special-case single digits.
+			name:        "NightlyJobWithTwoDigitRetry",
+			prowjobName: "4.11.0-0.nightly-2022-06-03-013657-aws-serial-42",
+			want: &ReleaseVerificationJobDetails{
+				Name: "4.11.0-0.nightly-2022-06-03-013657-aws-serial-42",
+				Version: semver.Version{
+					Major: 4,
+					Minor: 11,
+					Patch: 0,
+					Pre: []semver.PRVersion{
+						{
+							VersionStr: "",
+							VersionNum: 0,
+							IsNum:      true,
+						},
+						{
+							VersionStr: "nightly-2022-06-03-013657-aws-serial-42",
+							VersionNum: 0,
+							IsNum:      false,
+						},
+					},
+				},
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "0",
+					Stream:              "nightly",
+					Timestamp:           "2022-06-03-013657",
+					CIConfigurationName: "aws-serial",
+					Count:               "42",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			// A trailing numeric hash suffix longer than 2 digits (the same class of
+			// collision as NightlyJobTruncatedToNumeric, but on the plain job/count
+			// regex used for Stable/Candidate names with no timestamp) must stay part
+			// of the CIConfigurationName rather than being split off as a count.
+			name:        "ProductionJobWithLongNumericHashSuffix",
+			prowjobName: "4.10.17-aws-serial-1234567",
+			want: &ReleaseVerificationJobDetails{
+				Name: "4.10.17-aws-serial-1234567",
+				Version: semver.Version{
+					Major: 4,
+					Minor: 10,
+					Patch: 17,
+					Pre: []semver.PRVersion{
+						{
+							VersionStr: "aws-serial-1234567",
+							VersionNum: 0,
+							IsNum:      false,
+						},
+					},
+				},
+				PreReleaseDetails: &PreReleaseDetails{
+					PreRelease:          "",
+					Stream:              "Stable",
+					Timestamp:           "",
+					CIConfigurationName: "aws-serial-1234567",
+					Count:               "",
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1449,6 +1548,38 @@ func Test_parse(t *testing.T) {
 			name: "Unimplemented",
 			line: "*this_is_garbage*",
 			want: map[string]string{},
+		},
+		{
+			name: "NightlyTruncatedToNumericHash",
+			line: "0.nightly-2026-08-14-112411-hypershift-aks-confo-8298822",
+			want: map[string]string{
+				"prerelease":   "0",
+				"stream":       "nightly",
+				"architecture": "",
+				"timestamp":    "2026-08-14-112411",
+				"job":          "hypershift-aks-confo-8298822",
+				"count":        "",
+			},
+		},
+		{
+			name: "PreReleaseWithTwoDigitRetry",
+			line: "0.ci-2022-06-02-152750-aws-serial-42",
+			want: map[string]string{
+				"prerelease":   "0",
+				"stream":       "ci",
+				"architecture": "",
+				"timestamp":    "2022-06-02-152750",
+				"job":          "aws-serial",
+				"count":        "42",
+			},
+		},
+		{
+			name: "StableWithLongNumericHashSuffix",
+			line: "aws-serial-1234567",
+			want: map[string]string{
+				"job":   "aws-serial-1234567",
+				"count": "",
+			},
 		},
 	}
 	for _, tt := range tests {
