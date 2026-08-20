@@ -107,7 +107,7 @@ func (c *Controller) findReleaseStreamTags(includeStableTags bool, tags ...strin
 		// TODO: should be refactored to be unsortedSemanticReleaseTags
 		releaseTags := releasecontroller.SortedReleaseTags(r)
 		if includeStableTags {
-			if version, err := releasecontroller.SemverParseTolerant(r.Config.Name); err == nil || r.Config.As == releasecontroller.ReleaseConfigModeStable {
+			if version, err := releasecontroller.SemverParseTolerant(r.Config.Name); err == nil || r.Config.As == releasecontroller.ReleaseConfigModeStable || r.Config.As == releasecontroller.ReleaseConfigModeLayered {
 				stable.Releases = append(stable.Releases, releasecontroller.StableRelease{
 					Release:  r,
 					Version:  version,
@@ -685,6 +685,10 @@ func (c *Controller) apiReleaseInfo(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
+	}
+
+	if tagInfo.isLayeredTag() {
+		generateChangelog = false
 	}
 
 	verificationJobs, msg := c.getVerificationJobs(*tagInfo.Info.Tag, tagInfo.Info.Release)
@@ -1456,7 +1460,9 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 	case "multi":
 		renderMultiArchPullSpec(w, tagInfo.TagPullSpec)
 	default:
-		renderInstallInstructions(w, tagInfo.Info.Tag, tagInfo.TagPullSpec, c.artifactsHost)
+		if !tagInfo.isLayeredTag() {
+			renderInstallInstructions(w, tagInfo.Info.Tag, tagInfo.TagPullSpec, c.artifactsHost)
+		}
 	}
 
 	qualifierStatusAPI := fmt.Sprintf(`(<a href="/api/v1/releasetag/%s/qualifiers">status api</a>)`, template.HTMLEscapeString(url.PathEscape(tagInfo.Tag)))
@@ -1483,7 +1489,10 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 
 	var missingUpgrades []string
 	upgradeFound := make(map[string]bool)
-	supportedUpgrades, _ := c.getSupportedUpgrades(tagInfo.TagPullSpec)
+	var supportedUpgrades []string
+	if !tagInfo.isLayeredTag() {
+		supportedUpgrades, _ = c.getSupportedUpgrades(tagInfo.TagPullSpec)
+	}
 	if len(supportedUpgrades) > 0 {
 		for _, u := range upgradesTo {
 			upgradeFound[u.From] = true
@@ -1605,47 +1614,50 @@ func (c *Controller) httpReleaseInfo(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, `</ul>`)
 	}
 
-	if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpec) > 0 && len(tagInfo.TagPullSpec) > 0 {
-		fmt.Fprintln(w, "<hr>")
-		c.renderChangeLog(w, tagInfo.PreviousTagPullSpec, tagInfo.Info.Previous.Name, tagInfo.TagPullSpec, tagInfo.Info.Tag.Name, "html")
-	}
+	// Layered releases do not currently support changelogs...
+	if !tagInfo.isLayeredTag() {
+		if tagInfo.Info.Previous != nil && len(tagInfo.PreviousTagPullSpec) > 0 && len(tagInfo.TagPullSpec) > 0 {
+			fmt.Fprintln(w, "<hr>")
+			c.renderChangeLog(w, tagInfo.PreviousTagPullSpec, tagInfo.Info.Previous.Name, tagInfo.TagPullSpec, tagInfo.Info.Tag.Name, "html")
+		}
 
-	var options []string
-	for _, tag := range tagInfo.Info.Older {
-		var selected string
-		if tag.Name == tagInfo.Info.Previous.Name {
-			selected = `selected="true"`
-		}
-		if !endOfLifePrefixes.Has(pruneTagInfo(tag.Name)) {
-			options = append(options, fmt.Sprintf(`<option %s>%s</option>`, selected, tag.Name))
-		}
-	}
-	for _, release := range tagInfo.Info.Stable.Releases {
-		if release.Release == tagInfo.Info.Release {
-			continue
-		}
-		for j, version := range release.Versions {
-			if !endOfLifePrefixes.Has(pruneTagInfo(version.Tag.Name)) {
-				if j == 0 && len(options) > 0 {
-					options = append(options, `<option disabled>───</option>`)
-				}
-				var selected string
-				if tagInfo.Info.Previous != nil && version.Tag.Name == tagInfo.Info.Previous.Name {
-					selected = `selected="true"`
-				}
-				options = append(options, fmt.Sprintf(`<option %s>%s</option>`, selected, version.Tag.Name))
+		var options []string
+		for _, tag := range tagInfo.Info.Older {
+			var selected string
+			if tag.Name == tagInfo.Info.Previous.Name {
+				selected = `selected="true"`
+			}
+			if !endOfLifePrefixes.Has(pruneTagInfo(tag.Name)) {
+				options = append(options, fmt.Sprintf(`<option %s>%s</option>`, selected, tag.Name))
 			}
 		}
-	}
-	if len(options) > 0 {
-		fmt.Fprint(w, `<p><form class="form-inline" method="GET">`)
-		if tagInfo.Info.Previous != nil {
-			fmt.Fprintf(w, `<a href="/changelog?from=%s&to=%s">View changelog in Markdown</a><span>&nbsp;or&nbsp;</span><label for="from">change previous release:&nbsp;</label>`, tagInfo.Info.Previous.Name, tagInfo.Info.Tag.Name)
-		} else {
-			fmt.Fprint(w, `<label for="from">change previous release:&nbsp;</label>`)
+		for _, release := range tagInfo.Info.Stable.Releases {
+			if release.Release == tagInfo.Info.Release {
+				continue
+			}
+			for j, version := range release.Versions {
+				if !endOfLifePrefixes.Has(pruneTagInfo(version.Tag.Name)) {
+					if j == 0 && len(options) > 0 {
+						options = append(options, `<option disabled>───</option>`)
+					}
+					var selected string
+					if tagInfo.Info.Previous != nil && version.Tag.Name == tagInfo.Info.Previous.Name {
+						selected = `selected="true"`
+					}
+					options = append(options, fmt.Sprintf(`<option %s>%s</option>`, selected, version.Tag.Name))
+				}
+			}
 		}
-		fmt.Fprintf(w, `<select onchange="this.form.submit()" id="from" class="form-control" name="from">%s</select> <input class="btn btn-link" type="submit" value="Compare">`, strings.Join(options, ""))
-		fmt.Fprint(w, `</form></p>`)
+		if len(options) > 0 {
+			fmt.Fprint(w, `<p><form class="form-inline" method="GET">`)
+			if tagInfo.Info.Previous != nil {
+				fmt.Fprintf(w, `<a href="/changelog?from=%s&to=%s">View changelog in Markdown</a><span>&nbsp;or&nbsp;</span><label for="from">change previous release:&nbsp;</label>`, tagInfo.Info.Previous.Name, tagInfo.Info.Tag.Name)
+			} else {
+				fmt.Fprint(w, `<label for="from">change previous release:&nbsp;</label>`)
+			}
+			fmt.Fprintf(w, `<select onchange="this.form.submit()" id="from" class="form-control" name="from">%s</select> <input class="btn btn-link" type="submit" value="Compare">`, strings.Join(options, ""))
+			fmt.Fprint(w, `</form></p>`)
+		}
 	}
 }
 
@@ -1702,7 +1714,7 @@ func (c *Controller) tableLink(config *releasecontroller.ReleaseConfig, tag imag
 		}
 		if strings.Contains(tag.Name, "nightly") && c.doesInconsistencyExist(tag.Name) {
 			return fmt.Sprintf(`<td class="text-monospace"><a class="%s" href="/releasestream/%s/release/%s">%s</a> <a href="/releasestream/%s/inconsistency/%s"><i title="Inconsistency detected! Click for more details" class="bi bi-exclamation-circle"></i></a></td>`, alert, template.HTMLEscapeString(config.Name), template.HTMLEscapeString(tag.Name), template.HTMLEscapeString(tag.Name), template.HTMLEscapeString(config.Name), template.HTMLEscapeString(tag.Name))
-		} else if config.As == releasecontroller.ReleaseConfigModeStable {
+		} else if config.As == releasecontroller.ReleaseConfigModeStable || config.As == releasecontroller.ReleaseConfigModeLayered {
 			return fmt.Sprintf(`<td class="text-monospace"><a class="%s" style="padding-left:15px" href="/releasestream/%s/release/%s">%s</a></td>`, alert, template.HTMLEscapeString(config.Name), template.HTMLEscapeString(tag.Name), template.HTMLEscapeString(tag.Name))
 		} else {
 			return fmt.Sprintf(`<td class="text-monospace"><a class="%s" href="/releasestream/%s/release/%s">%s</a></td>`, alert, template.HTMLEscapeString(config.Name), template.HTMLEscapeString(tag.Name), template.HTMLEscapeString(tag.Name))
@@ -1747,7 +1759,7 @@ func (c *Controller) httpReleases(w http.ResponseWriter, req *http.Request) {
 			"publishDescription": func(r *ReleaseStream) string {
 				streamMessage := generateStreamMessage(r)
 				if len(streamMessage) > 0 {
-					if r.Release.Config.As == releasecontroller.ReleaseConfigModeStable {
+					if r.Release.Config.As == releasecontroller.ReleaseConfigModeStable || r.Release.Config.As == releasecontroller.ReleaseConfigModeLayered {
 						searchFunctionPrefix := removeSpecialCharacters(r.Release.Config.Name)
 						searchFunction := fmt.Sprintf("searchTable_%s('%s')", searchFunctionPrefix, searchFunctionPrefix)
 						return fmt.Sprintf("<div class=\"container\">\n<div class=\"row d-flex justify-content-between\">\n<div><p>%s</p></div>\n<div class=\"form-outline\"><input type=\"search\" class=\"form-control\" id=\"%s\" onkeyup=\"%s\"  placeholder=\"Search\" aria-label=\"Search\"></div>\n</div>\n</div>", streamMessage, searchFunctionPrefix, searchFunction)
@@ -1759,6 +1771,10 @@ func (c *Controller) httpReleases(w http.ResponseWriter, req *http.Request) {
 				case releasecontroller.ReleaseConfigModeStable:
 					if len(streamMessage) == 0 {
 						out = append(out, `<span>stable tags</span>`)
+					}
+				case releasecontroller.ReleaseConfigModeLayered:
+					if len(streamMessage) == 0 {
+						out = append(out, `<span>layered releases</span>`)
 					}
 				default:
 					out = append(out, fmt.Sprintf(`<span>updated when <code>%s/%s</code> changes</span>`, r.Release.Source.Namespace, r.Release.Source.Name))
@@ -1846,7 +1862,7 @@ func (c *Controller) httpReleases(w http.ResponseWriter, req *http.Request) {
 			Tags:    releasecontroller.SortedReleaseTags(r),
 		}
 		var delays []string
-		if r.Config.As != releasecontroller.ReleaseConfigModeStable && len(s.Tags) > 0 {
+		if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered && len(s.Tags) > 0 {
 			if ok, _, queueAfter := releasecontroller.IsReleaseDelayedForInterval(r, s.Tags[0]); ok {
 				delays = append(delays, fmt.Sprintf("waiting for %s", queueAfter.Truncate(time.Second)))
 			}
@@ -1857,7 +1873,7 @@ func (c *Controller) httpReleases(w http.ResponseWriter, req *http.Request) {
 		if len(delays) > 0 {
 			s.Delayed = &ReleaseDelay{Message: fmt.Sprintf("Next release may not start: %s", strings.Join(delays, ", "))}
 		}
-		if r.Config.As != releasecontroller.ReleaseConfigModeStable {
+		if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered {
 			s.Upgrades = calculateReleaseUpgrades(r, s.Tags, c.graph, false)
 		}
 		page.Streams = append(page.Streams, s)
@@ -2214,7 +2230,7 @@ func (c *Controller) httpReleaseStreamTable(w http.ResponseWriter, req *http.Req
 			"publishDescription": func(r *ReleaseStream) string {
 				streamMessage := generateStreamMessage(r)
 				if len(streamMessage) > 0 {
-					if r.Release.Config.As == releasecontroller.ReleaseConfigModeStable {
+					if r.Release.Config.As == releasecontroller.ReleaseConfigModeStable || r.Release.Config.As == releasecontroller.ReleaseConfigModeLayered {
 						searchFunctionPrefix := removeSpecialCharacters(r.Release.Config.Name)
 						searchFunction := fmt.Sprintf("searchTable_%s('%s')", searchFunctionPrefix, searchFunctionPrefix)
 						return fmt.Sprintf("<div class=\"container\">\n<div class=\"row d-flex justify-content-between\">\n<div><p>%s</p></div>\n<div class=\"form-outline\"><input type=\"search\" class=\"form-control\" id=\"%s\" onkeyup=\"%s\"  placeholder=\"Search\" aria-label=\"Search\"></div>\n</div>\n</div>", streamMessage, searchFunctionPrefix, searchFunction)
@@ -2226,6 +2242,10 @@ func (c *Controller) httpReleaseStreamTable(w http.ResponseWriter, req *http.Req
 				case releasecontroller.ReleaseConfigModeStable:
 					if len(streamMessage) == 0 {
 						out = append(out, `<span>stable tags</span>`)
+					}
+				case releasecontroller.ReleaseConfigModeLayered:
+					if len(streamMessage) == 0 {
+						out = append(out, `<span>layered releases</span>`)
 					}
 				default:
 					out = append(out, fmt.Sprintf(`<span>updated when <code>%s/%s</code> changes</span>`, r.Release.Source.Namespace, r.Release.Source.Name))
@@ -2305,7 +2325,7 @@ func (c *Controller) httpReleaseStreamTable(w http.ResponseWriter, req *http.Req
 		Tags:    releasecontroller.SortedReleaseTags(r),
 	}
 	var delays []string
-	if r.Config.As != releasecontroller.ReleaseConfigModeStable && len(s.Tags) > 0 {
+	if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered && len(s.Tags) > 0 {
 		if ok, _, queueAfter := releasecontroller.IsReleaseDelayedForInterval(r, s.Tags[0]); ok {
 			delays = append(delays, fmt.Sprintf("waiting for %s", queueAfter.Truncate(time.Second)))
 		}
@@ -2316,7 +2336,7 @@ func (c *Controller) httpReleaseStreamTable(w http.ResponseWriter, req *http.Req
 	if len(delays) > 0 {
 		s.Delayed = &ReleaseDelay{Message: fmt.Sprintf("Next release may not start: %s", strings.Join(delays, ", "))}
 	}
-	if r.Config.As != releasecontroller.ReleaseConfigModeStable {
+	if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered {
 		s.Upgrades = calculateReleaseUpgrades(r, s.Tags, c.graph, false)
 	}
 	page.TargetStream = s
@@ -2376,6 +2396,10 @@ func (c *Controller) httpDashboardOverview(w http.ResponseWriter, req *http.Requ
 				case releasecontroller.ReleaseConfigModeStable:
 					if len(streamMessage) == 0 {
 						out = append(out, `<span>stable tags</span>`)
+					}
+				case releasecontroller.ReleaseConfigModeLayered:
+					if len(streamMessage) == 0 {
+						out = append(out, `<span>layered releases</span>`)
 					}
 				default:
 					out = append(out, fmt.Sprintf(`<span>updated when <code>%s/%s</code> changes</span>`, r.Release.Source.Namespace, r.Release.Source.Name))
@@ -2444,7 +2468,7 @@ func (c *Controller) httpDashboardOverview(w http.ResponseWriter, req *http.Requ
 			Tags:    releasecontroller.SortedReleaseTags(r),
 		}
 		var delays []string
-		if r.Config.As != releasecontroller.ReleaseConfigModeStable && len(s.Tags) > 0 {
+		if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered && len(s.Tags) > 0 {
 			if ok, _, queueAfter := releasecontroller.IsReleaseDelayedForInterval(r, s.Tags[0]); ok {
 				delays = append(delays, fmt.Sprintf("waiting for %s", queueAfter.Truncate(time.Second)))
 			}
@@ -2463,7 +2487,7 @@ func (c *Controller) httpDashboardOverview(w http.ResponseWriter, req *http.Requ
 		if len(delays) > 0 {
 			s.Delayed = &ReleaseDelay{Message: fmt.Sprintf("Next release may not start: %s", strings.Join(delays, ", "))}
 		}
-		if r.Config.As != releasecontroller.ReleaseConfigModeStable {
+		if r.Config.As != releasecontroller.ReleaseConfigModeStable && r.Config.As != releasecontroller.ReleaseConfigModeLayered {
 			s.Upgrades = calculateReleaseUpgrades(r, s.Tags, c.graph, true)
 		}
 		page.Streams = append(page.Streams, s)
@@ -3041,4 +3065,11 @@ func (c *Controller) apiReleaseApprovals(w http.ResponseWriter, req *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	fmt.Fprintln(w)
+}
+
+func (t *releaseTagInfo) isLayeredTag() bool {
+	if t.Info != nil && t.Info.Release != nil && t.Info.Release.Config != nil && t.Info.Release.Config.As == releasecontroller.ReleaseConfigModeLayered {
+		return true
+	}
+	return false
 }

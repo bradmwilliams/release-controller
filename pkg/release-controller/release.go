@@ -107,7 +107,7 @@ func ReleaseDefinition(is *imagev1.ImageStream, releaseConfigCache *lru.Cache, e
 	}
 
 	switch cfg.As {
-	case ReleaseConfigModeStable:
+	case ReleaseConfigModeStable, ReleaseConfigModeLayered:
 		r := &Release{
 			Source: is,
 			Target: is,
@@ -152,8 +152,8 @@ func ParseReleaseConfig(data string, configCache *lru.Cache) (*ReleaseConfig, er
 	if len(cfg.Name) == 0 {
 		return nil, fmt.Errorf("release config must have a valid name")
 	}
-	if len(cfg.To) == 0 && cfg.As != ReleaseConfigModeStable {
-		return nil, fmt.Errorf("release must specify 'to' unless 'as' is 'Stable'")
+	if len(cfg.To) == 0 && cfg.As != ReleaseConfigModeStable && cfg.As != ReleaseConfigModeLayered {
+		return nil, fmt.Errorf("release must specify 'to' unless 'as' is 'Stable' or 'Layered'")
 	}
 	for name, verify := range cfg.Verify {
 		if len(name) == 0 {
@@ -182,6 +182,14 @@ func ParseReleaseConfig(data string, configCache *lru.Cache) (*ReleaseConfig, er
 		if publish.ImageStreamRef != nil {
 			if len(publish.ImageStreamRef.Name) == 0 {
 				return nil, fmt.Errorf("imageStreamRef publish for %s has no name", name)
+			}
+		}
+		if publish.ExternalRegistry != nil {
+			if len(publish.ExternalRegistry.Registry) == 0 {
+				return nil, fmt.Errorf("externalRegistry publish for %s has no registry", name)
+			}
+			if len(publish.ExternalRegistry.SecretName) == 0 {
+				return nil, fmt.Errorf("externalRegistry publish for %s has no secretName", name)
 			}
 		}
 	}
