@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/clock"
 )
 
@@ -25,6 +27,9 @@ type Options struct {
 	minimumAge           time.Duration
 	interval             time.Duration
 	dryRun               bool
+
+	NonProwJobKubeconfig string
+	ReleasesKubeconfig   string
 }
 
 func NewReleaseMirrorCleanupControllerCommand(name string) *cobra.Command {
@@ -65,6 +70,9 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&o.minimumAge, "minimum-age", 720*time.Hour, "Only delete tags older than this duration")
 	fs.DurationVar(&o.interval, "interval", 24*time.Hour, "How often to run the cleaner")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Print tags to be deleted without actually committing the changes.")
+
+	fs.StringVar(&o.NonProwJobKubeconfig, "non-prow-job-kubeconfig", o.NonProwJobKubeconfig, "The kubeconfig to use for everything that is not ProwJobs (namespaced, pods, secrets, ...). Falls back to in-cluster config if unset.")
+	fs.StringVar(&o.ReleasesKubeconfig, "releases-kubeconfig", o.ReleasesKubeconfig, "The kubeconfig to use for interacting with release imagestreams. Falls back to non-prow-job-kubeconfig and then in-cluster config if unset.")
 }
 
 func (o *Options) Validate(ctx context.Context) error {
@@ -77,13 +85,23 @@ func (o *Options) Validate(ctx context.Context) error {
 func (o *Options) Run(ctx context.Context) error {
 	inClusterConfig := o.controllerContext.KubeConfig
 
+	nonProwJobCfg, err := resolveKubeconfig(o.NonProwJobKubeconfig, inClusterConfig)
+	if err != nil {
+		return fmt.Errorf("failed to load non-prow-job kubeconfig: %w", err)
+	}
+
+	releasesCfg, err := resolveKubeconfig(o.ReleasesKubeconfig, nonProwJobCfg)
+	if err != nil {
+		return fmt.Errorf("failed to load releases kubeconfig: %w", err)
+	}
+
 	// ImageStream Informers
-	imageStreamClient, err := imageclientset.NewForConfig(inClusterConfig)
+	imageStreamClient, err := imageclientset.NewForConfig(releasesCfg)
 	if err != nil {
 		return fmt.Errorf("error building imagestream clientset: %s", err.Error())
 	}
 
-	kubeClient, err := clientset.NewForConfig(inClusterConfig)
+	kubeClient, err := clientset.NewForConfig(nonProwJobCfg)
 	if err != nil {
 		return fmt.Errorf("error building generic clientset: %s", err.Error())
 	}
@@ -107,4 +125,15 @@ func (o *Options) Run(ctx context.Context) error {
 	<-ctx.Done()
 
 	return nil
+}
+
+// resolveKubeconfig loads a kubeconfig from path, or returns the fallback config if path is empty.
+func resolveKubeconfig(path string, fallback *rest.Config) (*rest.Config, error) {
+	if path == "" {
+		return fallback, nil
+	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: path},
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
 }
