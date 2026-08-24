@@ -19,6 +19,8 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 	prowjobclientset "sigs.k8s.io/prow/pkg/client/clientset/versioned"
@@ -31,6 +33,10 @@ type Options struct {
 	controllerContext           *controllercmd.ControllerContext
 	ReleaseQualifiersConfigPath string
 	ReleaseNamespace            string
+
+	ProwJobKubeconfig    string
+	NonProwJobKubeconfig string
+	ReleasesKubeconfig   string
 
 	// BigQuery Options
 	GoogleProjectID                    string
@@ -78,6 +84,10 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&o.BigQueryCacheTTL, "bigquery-cache-ttl", o.BigQueryCacheTTL, "TTL for cached BigQuery query results (0 to disable caching)")
 	fs.StringVar(&o.ReleaseNamespace, "release-namespace", "", "Namespace to watch for releasepayloads. When unset, all namespaces will be watched. Useful for testing locally with a single namespace.")
 
+	fs.StringVar(&o.ProwJobKubeconfig, "prow-job-kubeconfig", o.ProwJobKubeconfig, "The kubeconfig to use for interacting with ProwJobs. Defaults to in-cluster config if unset.")
+	fs.StringVar(&o.NonProwJobKubeconfig, "non-prow-job-kubeconfig", o.NonProwJobKubeconfig, "The kubeconfig to use for everything that is not ProwJobs (namespaced, pods, batchjobs, ...). Falls back to in-cluster config if unset.")
+	fs.StringVar(&o.ReleasesKubeconfig, "releases-kubeconfig", o.ReleasesKubeconfig, "The kubeconfig to use for interacting with release imagestreams and release payloads. Falls back to non-prow-job-kubeconfig and then in-cluster config if unset.")
+
 	goFlagSet := flag.NewFlagSet("jira", flag.ContinueOnError)
 	o.jira.AddFlags(goFlagSet)
 	fs.AddGoFlagSet(goFlagSet)
@@ -93,7 +103,22 @@ func (o *Options) Validate(_ context.Context) error {
 func (o *Options) Run(ctx context.Context) error {
 	inClusterConfig := o.controllerContext.KubeConfig
 
-	kubeClient, err := kubernetes.NewForConfig(inClusterConfig)
+	nonProwJobCfg, err := resolveKubeconfig(o.NonProwJobKubeconfig, inClusterConfig)
+	if err != nil {
+		return fmt.Errorf("failed to load non-prow-job kubeconfig: %w", err)
+	}
+
+	releasesCfg, err := resolveKubeconfig(o.ReleasesKubeconfig, nonProwJobCfg)
+	if err != nil {
+		return fmt.Errorf("failed to load releases kubeconfig: %w", err)
+	}
+
+	prowJobCfg, err := resolveKubeconfig(o.ProwJobKubeconfig, inClusterConfig)
+	if err != nil {
+		return fmt.Errorf("failed to load prow-job kubeconfig: %w", err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(nonProwJobCfg)
 	if err != nil {
 		return fmt.Errorf("can't build kubernetes client: %w", err)
 	}
@@ -103,7 +128,7 @@ func (o *Options) Run(ctx context.Context) error {
 	batchJobInformer := kubeFactory.Batch().V1().Jobs()
 
 	// ReleasePayload Informers
-	releasePayloadClient, err := releasepayloadclient.NewForConfig(inClusterConfig)
+	releasePayloadClient, err := releasepayloadclient.NewForConfig(releasesCfg)
 	if err != nil {
 		klog.Fatalf("Error building releasePayload clientset: %s", err.Error())
 	}
@@ -112,7 +137,7 @@ func (o *Options) Run(ctx context.Context) error {
 	releasePayloadInformer := releasePayloadInformerFactory.Release().V1alpha1().ReleasePayloads()
 
 	// ProwJob Informers
-	prowJobClient, err := prowjobclientset.NewForConfig(inClusterConfig)
+	prowJobClient, err := prowjobclientset.NewForConfig(prowJobCfg)
 	if err != nil {
 		klog.Fatalf("Error building prowjob clientset: %s", err.Error())
 	}
@@ -121,7 +146,7 @@ func (o *Options) Run(ctx context.Context) error {
 	prowJobInformer := prowJobInformerFactory.Prow().V1().ProwJobs()
 
 	// ImageStream Informers
-	imageStreamClient, err := imageclientset.NewForConfig(inClusterConfig)
+	imageStreamClient, err := imageclientset.NewForConfig(releasesCfg)
 	if err != nil {
 		klog.Fatalf("Error building imagestream clientset: %s", err.Error())
 	}
@@ -281,4 +306,15 @@ func (o *Options) Run(ctx context.Context) error {
 	<-ctx.Done()
 
 	return nil
+}
+
+// resolveKubeconfig loads a kubeconfig from path, or returns the fallback config if path is empty.
+func resolveKubeconfig(path string, fallback *rest.Config) (*rest.Config, error) {
+	if path == "" {
+		return fallback, nil
+	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: path},
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
 }
