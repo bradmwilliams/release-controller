@@ -189,7 +189,15 @@ func (c *Controller) resolveUpgradeRelease(upgradeRelease *releasecontroller.Upg
 	} else if upgradeRelease.Candidate != nil {
 		// create blank semver.Range
 		var constraint semver.Range
-		stream := fmt.Sprintf("%s.0-0.%s%s", upgradeRelease.Candidate.Version, upgradeRelease.Candidate.Stream, TrimPrefixes(release.Config.To, "release-5", "release"))
+		// Stream name = "<version>.0-0.<stream><suffix>", where suffix comes from
+		// stripping the Config.To prefix. Order matters — longest prefix first:
+		//   "release-5"    → "" (OCP 5.x:     e.g. 5.0.0-0.nightly)
+		//   "release-scos" → "" (OKD SCOS:    e.g. 4.22.0-0.okd-scos-nightly)
+		//   "release"      → "" (OCP 4.x:     e.g. 4.22.0-0.nightly)
+		// Without "release-scos", Config.To="release-scos" matches the shorter
+		// "release" prefix, producing suffix "-scos" — which makes it impossible
+		// for the stream field to target nightly streams (e.g. okd-scos-nightly).
+		stream := fmt.Sprintf("%s.0-0.%s%s", upgradeRelease.Candidate.Version, upgradeRelease.Candidate.Stream, TrimPrefixes(release.Config.To, "release-5", "release-scos", "release"))
 		r, latest, err := releasecontroller.LatestForStream(c.parsedReleaseConfigCache, c.eventRecorder, c.releaseLister, c.releasePayloadLister, stream, constraint, upgradeRelease.Candidate.Relative, "")
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get latest tag for stream %s: %w", stream, err)
